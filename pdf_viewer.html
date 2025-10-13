@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Presentation Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #slideContainer {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #slideImage {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+        }
+
+        #controls {
+            background-color: #2a2a2a;
+            padding: 15px 30px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            text-align: center;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+
+        #slideInfo {
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        #status {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .loading {
+            color: white;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .error {
+            color: #ff6b6b;
+            font-size: 18px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #connectionStatus {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="connectionStatus" class="disconnected">Disconnected</div>
+
+    <div id="slideContainer">
+        <img id="slideImage" alt="PDF Slide" style="display: none;">
+        <div id="loadingMessage" class="loading">Connecting to PDF server...</div>
+    </div>
+
+    <div id="controls">
+        <button id="prevBtn" onclick="previousSlide()" disabled>← Previous</button>
+        <div id="slideInfo">-/-</div>
+        <button id="nextBtn" onclick="nextSlide()" disabled>Next →</button>
+        <div id="status">Waiting for connection...</div>
+    </div>
+
+    <script>
+        let socket;
+        let currentSlide = 0;
+        let totalSlides = 0;
+
+        function connectToServer() {
+            const wsUrl = 'ws://localhost:9002/viewer';
+
+            try {
+                socket = new WebSocket(wsUrl);
+
+                socket.onopen = function(event) {
+                    console.log('Connected to PDF server');
+                    document.getElementById('connectionStatus').textContent = 'Connected';
+                    document.getElementById('connectionStatus').className = 'connected';
+                    document.getElementById('status').textContent = 'Connected';
+
+                    // Request initial slide
+                    socket.send(JSON.stringify({ command: 'refresh' }));
+                };
+
+                socket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'slide_update') {
+                            currentSlide = data.slide_number;
+                            totalSlides = data.total_slides;
+
+                            // Update slide image
+                            const slideImage = document.getElementById('slideImage');
+                            slideImage.src = 'data:image/png;base64,' + data.image;
+                            slideImage.style.display = 'block';
+                            document.getElementById('loadingMessage').style.display = 'none';
+
+                            // Update slide counter
+                            document.getElementById('slideInfo').textContent =
+                                `${currentSlide + 1} / ${totalSlides}`;
+
+                            // Update button states
+                            document.getElementById('prevBtn').disabled = (currentSlide === 0);
+                            document.getElementById('nextBtn').disabled = (currentSlide === totalSlides - 1);
+
+                            document.getElementById('status').textContent =
+                                `Slide ${currentSlide + 1} of ${totalSlides}`;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing message:', e);
+                    }
+                };
+
+                socket.onclose = function(event) {
+                    console.log('Disconnected from PDF server');
+                    document.getElementById('connectionStatus').textContent = 'Disconnected';
+                    document.getElementById('connectionStatus').className = 'disconnected';
+                    document.getElementById('status').textContent = 'Connection lost. Reconnecting...';
+                    document.getElementById('prevBtn').disabled = true;
+                    document.getElementById('nextBtn').disabled = true;
+
+                    // Attempt to reconnect after 2 seconds
+                    setTimeout(connectToServer, 2000);
+                };
+
+                socket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    document.getElementById('loadingMessage').textContent =
+                        'Error connecting to PDF server. Is it running?';
+                    document.getElementById('loadingMessage').className = 'error';
+                };
+
+            } catch (e) {
+                console.error('Connection error:', e);
+            }
+        }
+
+        function nextSlide() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ command: 'next' }));
+            }
+        }
+
+        function previousSlide() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ command: 'previous' }));
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowRight' || event.key === ' ') {
+                event.preventDefault();
+                nextSlide();
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                previousSlide();
+            }
+        });
+
+        // Connect on page load
+        window.addEventListener('load', connectToServer);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (socket) {
+                socket.close();
+            }
+        });
+    </script>
+</body>
+</html>
+

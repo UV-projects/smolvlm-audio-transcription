@@ -14,6 +14,7 @@ import torch
 import pyaudio
 import asyncio
 import websockets
+import json
 
 from moshi.models import loaders, MimiModel, LMGen
 
@@ -21,6 +22,8 @@ from moshi.models import loaders, MimiModel, LMGen
 CONNECTED_CLIENTS = set()
 # Global event loop reference
 MAIN_LOOP = None
+# WebSocket connection to Orchestrator
+ORCHESTRATOR_CONNECTION = None
 
 async def broadcast_text(text: str):
     """
@@ -31,6 +34,34 @@ async def broadcast_text(text: str):
         tasks = [client.send(text) for client in CONNECTED_CLIENTS]
         # Execute all send tasks in parallel
         await asyncio.gather(*tasks, return_exceptions=True)
+
+async def send_to_orchestrator(message: str):
+    """
+    Send a message to the Orchestrator agent.
+    """
+    global ORCHESTRATOR_CONNECTION
+
+    if ORCHESTRATOR_CONNECTION:
+        try:
+            await ORCHESTRATOR_CONNECTION.send(message)
+        except Exception as e:
+            print(f"Error sending to orchestrator: {e}")
+            ORCHESTRATOR_CONNECTION = None
+
+async def connect_to_orchestrator():
+    """
+    Establish connection to the Orchestrator agent.
+    """
+    global ORCHESTRATOR_CONNECTION
+    orchestrator_uri = "ws://localhost:9001"
+
+    try:
+        ORCHESTRATOR_CONNECTION = await websockets.connect(orchestrator_uri)
+        print(f"Connected to Orchestrator at {orchestrator_uri}")
+    except Exception as e:
+        print(f"Could not connect to Orchestrator at {orchestrator_uri}: {e}")
+        print("Audio STT will continue without orchestrator integration.")
+        ORCHESTRATOR_CONNECTION = None
 
 async def connection_handler(websocket):
     """
@@ -162,6 +193,16 @@ class RealtimeSTT:
                             # Send text via WebSocket in a thread-safe manner
                             asyncio.run_coroutine_threadsafe(broadcast_text(text), MAIN_LOOP)
 
+                            # Send text to orchestrator with proper JSON format
+                            orchestrator_payload = json.dumps({
+                                "source": "audio_stt",
+                                "content": text
+                            })
+                            asyncio.run_coroutine_threadsafe(
+                                send_to_orchestrator(orchestrator_payload),
+                                MAIN_LOOP
+                            )
+
                     except Exception as tensor_error:
                         print(f"\nTensor conversion error: {tensor_error}")
                         continue
@@ -234,6 +275,9 @@ async def main_async():
     host = "localhost"
     port = 8765
     print(f"Starting WebSocket server on ws://{host}:{port}")
+
+    # Connect to Orchestrator
+    await connect_to_orchestrator()
 
     try:
         async with websockets.serve(connection_handler, host, port):

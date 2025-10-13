@@ -1,6 +1,6 @@
-moshi
 torch
 pyaudio
-numpy
-sentencepiece
+numpy<2.0
 websockets
+PyMuPDF
+Pillow

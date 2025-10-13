@@ -121,6 +121,9 @@
         const sttResponseText = document.getElementById('sttResponseText');
         let sttSocket; // WebSocket for STT connection
 
+        // === Orchestrator WebSocket (NEW) ===
+        let orchestratorSocket;
+
         // === State Variables ===
         let stream;
         let intervalId;
@@ -180,6 +183,15 @@
             try {
                 const response = await sendChatCompletionRequest(instruction, imageBase64URL);
                 responseText.value = response;
+
+                // NEW: Forward to Orchestrator
+                if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                    const orchestratorPayload = {
+                        source: "vision_vlm",
+                        content: response
+                    };
+                    orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                }
             } catch (error) {
                 console.error('Error sending data:', error);
                 responseText.value = `Error: ${error.message}`;
@@ -215,6 +227,29 @@
             sttSocket.onerror = function(error) {
                 console.error("STT WebSocket Error:", error);
                 sttResponseText.value = "[Error connecting to the audio server. Is it running?]";
+            };
+        }
+
+        // --- Orchestrator WebSocket Functions (NEW) ---
+
+        function setupOrchestratorWebSocket() {
+            if (orchestratorSocket) {
+                orchestratorSocket.close();
+            }
+
+            orchestratorSocket = new WebSocket('ws://localhost:9001');
+
+            orchestratorSocket.onopen = function(event) {
+                console.log("Orchestrator WebSocket connection established.");
+            };
+
+            orchestratorSocket.onclose = function(event) {
+                console.log("Orchestrator WebSocket connection closed.");
+            };
+
+            orchestratorSocket.onerror = function(error) {
+                console.error("Orchestrator WebSocket Error:", error);
+                console.log("Vision agent will continue without orchestrator integration.");
             };
         }
 
@@ -255,6 +290,9 @@
 
             // Start STT connection (NEW)
             setupSttWebSocket();
+
+            // Start Orchestrator connection (NEW)
+            setupOrchestratorWebSocket();
         }
 
         function handleStop() {
@@ -267,6 +305,11 @@
             // Stop STT connection (NEW)
             if (sttSocket) {
                 sttSocket.close();
+            }
+
+            // Stop Orchestrator connection (NEW)
+            if (orchestratorSocket) {
+                orchestratorSocket.close();
             }
 
             startButton.textContent = "Start";
@@ -303,6 +346,9 @@
             }
             if (sttSocket) {
                 sttSocket.close();
+            }
+            if (orchestratorSocket) {
+                orchestratorSocket.close();
             }
         });
     </script>

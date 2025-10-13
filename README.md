@@ -1,217 +1,445 @@
-# SmolVLM + Audio Transcription Real-time Demo
 
-![demo](./demo.png)
+## 🤝 Credits
+# SmolVLM + Audio + PDF Presentation Control System
 
-This project combines **real-time vision analysis** with **live audio transcription** to create an interactive multimodal AI system. It demonstrates how to use:
+This project is an **intelligent multimodal presentation control system** that combines **real-time vision analysis**, **live audio transcription**, and **voice-controlled PDF presentations** using an agent-based architecture. It demonstrates how to build a practical AI system that can:
+## 📄 License
+- **Listen** to voice commands via real-time speech-to-text
+- **See** and analyze visual content through a vision language model
 
-- **SmolVLM (500M)** for visual understanding of your webcam feed
-- **Moshi STT** for real-time speech-to-text transcription
-- A simple web interface to interact with both models simultaneously
+## 🐛 Known Issues
+- **Orchestrate** multiple AI agents to work together seamlessly
+- VLM server requires ~2GB RAM when loaded
+- First-time model downloads can take 5-10 minutes
+- Browser may require HTTPS for microphone in production
+- Camera controller is currently a stub implementation
 
-## What This Project Does
+## 💡 Tips
 
-### 🎥 Real-time Vision (VLM)
+- Use a good quality microphone for better recognition
+- Speak clearly and at moderate pace
+- Keep PDF file size reasonable (<50MB) for best performance
+- Place the PDF file in the project root directory
+- Check all terminal windows for error messages
+- Use `./start_all.sh` for hassle-free startup
+
+---
+
+**Happy presenting! 🎉 Say "next slide" and watch the magic happen!**
+
+## 🎯 What This Project Does
+
+### 🎤 Real-time Audio Transcription (STT Agent)
+- Continuously listens to your microphone using **Moshi STT** model
+- Transcribes speech to text in real-time with low latency
+- Sends transcriptions to the Orchestrator for command recognition
+- Supports natural language commands like "next slide", "previous slide", "open presentation"
+
+### 🎥 Real-time Vision Analysis (VLM Agent - Optional)
 - Captures video from your webcam at configurable intervals (100ms to 2s)
-- Sends frames to SmolVLM for visual analysis
-- You can ask questions like "What do you see?", "Count the objects", "Describe in JSON format", etc.
-- Displays AI responses in real-time
+- Analyzes frames using **SmolVLM-500M** for visual understanding
+- Can detect objects and trigger camera control actions
+- Ask questions like "What do you see?", "Count the objects", etc.
 
-### 🎤 Real-time Audio Transcription (STT)
-- Continuously listens to your microphone
-- Transcribes speech to text in real-time using Moshi STT model
-- Displays live transcription as you speak
-- Works independently of the vision model
+### 📊 PDF Presentation Control System
+- **PDF Server**: Serves PDF slides as high-quality images via WebSocket
+- **Real-time slide navigation**: Next, previous, go to specific slide
+- **Voice control**: Say "next slide" or "previous slide" to navigate
+- **Browser-based viewer**: Clean, responsive interface for viewing presentations
+- **Multi-client support**: Multiple viewers can connect simultaneously
 
-### 🌐 Web Interface
-- Simple, clean interface to view both outputs simultaneously
-- Controls for starting/stopping capture
-- Adjustable frame capture intervals
-- Camera and microphone permission management
+### 🎬 Camera Controller (Executive Agent - Stub)
+- Placeholder for future camera control functionality
+- Designed to zoom on detected objects
+- Pan, tilt, and zoom operations planned
+- Ready for integration with PTZ cameras or software control
 
-## Architecture
+### 🧠 Orchestrator Agent (Central Intelligence)
+- **Rule-based decision engine**: Matches voice/vision input to actions
+- **Agent coordination**: Routes commands to appropriate executive agents
+- **Real-time processing**: Sub-second latency from input to action
+- **Extensible rules**: Easy to add new commands and behaviors
+
+## 🏗️ Agent-Based Architecture
 
 ```
-┌─────────────────┐
-│   Web Browser   │  (index.html)
-│  - Video Feed   │
-│  - Transcription│
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-┌───▼───┐ ┌──▼──────┐
-│  VLM  │ │  Audio  │
-│Server │ │ Server  │
-│:8080  │ │  :8765  │
-└───────┘ └─────────┘
-llama.cpp  Python+WS
-SmolVLM    Moshi STT
+┌─────────────────────────────────────────────────────────┐
+│                    Web Browser (GUI)                    │
+│  ┌──────────────────┐  ┌─────────────────────────────┐ │
+│  │  Unified         │  │  PDF Viewer                 │ │
+│  │  Interface       │  │  - Slide Display            │ │
+│  │  - Video Feed    │  │  - Navigation Controls      │ │
+│  │  - Transcription │  │  - Real-time Updates        │ │
+│  └──────────────────┘  └─────────────────────────────┘ │
+└───────┬──────────────────────────┬──────────────────────┘
+        │                          │
+        │ WebSocket                │ WebSocket
+        │                          │
+┌───────▼──────────┐      ┌────────▼─────────┐
+│  Audio STT       │      │  PDF Server      │
+│  (Perception)    │      │  (Executive)     │
+│  Port: 8765      │      │  Port: 9002      │
+│  - Moshi Model   │      │  - PyMuPDF       │
+│  - Real-time STT │      │  - Slide Render  │
+└────────┬─────────┘      └──────────▲───────┘
+         │                           │
+         │ JSON Messages             │ Commands
+         │                           │
+         │        ┌──────────────────┴────────┐
+         └────────►  Orchestrator Agent       │
+                  │  (Central Intelligence)   │
+                  │  Port: 9001               │
+                  │  - Rule Engine            │
+                  │  - Intent Recognition     │
+                  │  - Command Delegation     │
+                  └───────────┬───────────────┘
+                              │
+                              │ Commands
+                              │
+         ┌────────────────────┴────────────────────┐
+         │                                         │
+┌────────▼─────────┐              ┌───────────────▼──────┐
+│  VLM Server      │              │  Camera Controller   │
+│  (Perception)    │              │  (Executive - Stub)  │
+│  Port: 8080      │              │  - Zoom Controls     │
+│  - SmolVLM       │              │  - Pan/Tilt          │
+│  - Vision        │              │  - Object Tracking   │
+└──────────────────┘              └──────────────────────┘
 ```
 
-## Setup Instructions
+### Agent Roles
+
+**Perception Agents** (Gather data from environment):
+- **Audio STT Agent**: Converts speech to text
+- **Vision VLM Agent**: Analyzes visual scenes
+
+**Orchestrator Agent** (Makes decisions):
+- Receives data from perception agents
+- Applies rule-based logic to recognize intent
+- Delegates commands to executive agents
+
+**Executive Agents** (Take actions):
+- **PDF Server**: Controls presentation slides
+- **Camera Controller**: Controls camera movements (stub)
+- **Slide Controller**: Alternative slide control (stub)
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - macOS (tested on Apple Silicon and Intel)
 - Python 3.12+
 - Homebrew (for installing llama.cpp)
-- Webcam and microphone
+- Microphone (required)
+- Webcam (optional, for VLM features)
 
-### Step 1: Install System Dependencies
-
-```bash
-# Install Homebrew (if not already installed)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install llama.cpp for VLM server
-brew install llama.cpp
-
-# Install PortAudio for microphone support
-brew install portaudio
-```
-
-### Step 2: Set Up Python Environment
+### Installation
 
 ```bash
-# Navigate to project directory
+# Install system dependencies
+brew install llama.cpp portaudio
+
+# Set up Python environment
 cd /path/to/smolvlm+audio
-
-# Create virtual environment
 python3 -m venv .venv
-
-# Activate virtual environment
 source .venv/bin/activate
 
-# Install Python dependencies
+# Install Python packages
 pip install --upgrade pip
-pip install "numpy<2.0"  # Important: NumPy 1.x required for PyTorch compatibility
-pip install torch sentencepiece websockets pyaudio moshi
+pip install "numpy<2.0"  # NumPy 1.x for PyTorch compatibility
+pip install torch sentencepiece websockets pyaudio moshi PyMuPDF Pillow
 ```
 
-### Step 3: Start the Servers
+### Running the Complete System
 
-You need to run **two servers** simultaneously:
+**Option 1: Automated Startup (Recommended)**
+```bash
+chmod +x start_all.sh
+./start_all.sh
+```
 
-#### Terminal 1: VLM Server (Vision)
+This script will:
+1. Open 4 separate terminals for each server
+2. Start all services automatically
+3. Launch the unified web interface
+4. Wait 10 seconds for initialization
+
+**Option 2: Manual Startup**
+
+Open 4 separate terminal windows:
+
+**Terminal 1 - VLM Server (Optional)**:
 ```bash
 llama-server -hf ggml-org/SmolVLM-500M-Instruct-GGUF -ngl 99
 ```
 
-**Notes:** 
-- First run will download the SmolVLM model (~500MB)
-- `-ngl 99` enables GPU acceleration (works with Apple Silicon, NVIDIA, AMD, Intel GPUs)
-- Server runs on `http://localhost:8080`
+**Terminal 2 - PDF Server**:
+```bash
+cd /path/to/smolvlm+audio
+source .venv/bin/activate
+python pdf_server.py
+```
 
-#### Terminal 2: Audio Transcription Server
+**Terminal 3 - Orchestrator**:
+```bash
+cd /path/to/smolvlm+audio
+source .venv/bin/activate
+python orchestrator.py
+```
+
+**Terminal 4 - Audio STT Server**:
 ```bash
 cd /path/to/smolvlm+audio
 source .venv/bin/activate
 python main.py
 ```
 
-**Notes:**
-- First run will download the Moshi STT model (~1-2GB)
-- Automatically uses Apple Silicon GPU (MPS) if available, otherwise CPU
-- WebSocket server runs on `ws://localhost:8765`
-
-### Step 4: Open the Web Interface
-
+**Then open the GUI**:
 ```bash
-open index.html
+open unified_interface.html
 ```
 
-Or simply drag `index.html` into your browser.
+### Using the System
 
-### Step 5: Use the Application
+1. **Grant Permissions**: Allow microphone (and optionally camera) access in browser
+2. **Click "▶ Start System"**: Activates audio transcription and PDF viewer
+3. **Say Commands**:
+   - "next slide" - Advance to next slide
+   - "previous slide" - Go back one slide
+   - "open presentation" - Reset to first slide
+4. **View Results**: See live transcription and PDF slides update in real-time
 
-1. **Grant Permissions**: 
-   - Allow camera access when prompted
-   - Allow microphone access when prompted
+## 📋 Voice Commands
 
-2. **Click "Start"**: Both vision and audio capture will begin
+The system recognizes the following natural language commands:
 
-3. **Interact**:
-   - **Instruction field**: Customize what you want the VLM to analyze (e.g., "What objects are on my desk?", "Count the people", "Describe the scene in JSON")
-   - **Interval selector**: Choose how often to capture frames (100ms to 2s)
-   - **Response (VLM)**: See what the AI sees in your camera
-   - **Audio Transcription**: See your speech transcribed in real-time
+### Slide Control Commands
+| Voice Command | Action | Description |
+|--------------|--------|-------------|
+| "next slide" | NEXT_SLIDE | Advance to next slide |
+| "previous slide" | PREVIOUS_SLIDE | Go back one slide |
+| "open presentation" | OPEN_PRESENTATION | Reset to first slide |
 
-4. **Click "Stop"**: Stop both captures
+### Vision-Triggered Commands (VLM)
+| Detected Object | Action | Description |
+|-----------------|--------|-------------|
+| "cardboard" | ZOOM_ON_OBJECT | Zoom camera on cardboard (stub) |
+| "person" | ZOOM_ON_OBJECT | Zoom camera on person (stub) |
+| "bottle" | ZOOM_ON_OBJECT | Zoom camera on bottle (stub) |
 
-## Configuration Options
+*Add custom commands by editing the `_initialize_rules()` method in `orchestrator.py`*
 
-### VLM Server
-- Change the base URL in the web interface if running on a different host/port
-- Try different models from [llama.cpp multimodal models](https://github.com/ggml-org/llama.cpp/blob/master/docs/multimodal.md)
+## 🔧 Configuration
 
-### Audio Server
-- Edit `main.py` to change:
-  - Model: `model_repo="kyutai/stt-1b-en_fr"` (supports English and French)
-  - Device: Force CPU or GPU usage
-  - Port: Change WebSocket port from 8765
+### PDF Server (`pdf_server.py`)
+- **Port**: 9002
+- **PDF File**: `try.pdf` (place your PDF in project root)
+- **Endpoints**:
+  - `/viewer` - For web clients viewing slides
+  - `/control` - For orchestrator to send commands
+- **Render Quality**: 2x zoom for high-quality slides
 
-### Web Interface
-- Edit `index.html` to customize:
-  - Video resolution
-  - UI styling
-  - Default instruction
-  - Capture intervals
+### Audio STT Server (`main.py`)
+- **Port**: 8765
+- **Model**: Moshi STT 1B (English/French)
+- **Device**: Auto-detects MPS (Apple Silicon) or CPU
+- **Sample Rate**: 24kHz
+- **Chunk Duration**: ~80ms for low latency
 
-## Troubleshooting
+### Orchestrator (`orchestrator.py`)
+- **Port**: 9001
+- **Rule Engine**: Keyword-based matching
+- **Extensibility**: Add rules in `_initialize_rules()`
+- **Logging**: Detailed command flow tracking
 
-### NumPy/PyTorch Compatibility Error
-```bash
-# Ensure you're using NumPy 1.x
-pip install "numpy<2.0"
+### VLM Server (Optional)
+- **Port**: 8080
+- **Model**: SmolVLM-500M-Instruct
+- **GPU Acceleration**: Enabled with `-ngl 99`
+
+## 📁 Project Structure
+
+```
+smolvlm+audio/
+├── main.py                    # Audio STT WebSocket server
+├── pdf_server.py              # PDF presentation server
+├── orchestrator.py            # Central orchestrator agent
+├── CameraController.py        # Camera control stub
+├── SlideController.py         # Slide control stub (alternative)
+├── unified_interface.html     # Main web interface
+├── pdf_viewer.html           # Standalone PDF viewer
+├── index.html                # Legacy VLM+Audio interface
+├── start_all.sh              # Automated startup script
+├── try.pdf                   # Your presentation PDF
+├── requirements.txt          # Python dependencies
+├── STARTUP_GUIDE.md          # Detailed startup instructions
+├── ORCHESTRATOR_GUIDE.md     # Orchestrator documentation
+└── PDF_SYSTEM_README.md      # PDF system documentation
 ```
 
-### PyAudio Installation Issues
-```bash
-# Make sure PortAudio is installed first
-brew install portaudio
-pip install pyaudio
-```
+## 🎨 Web Interfaces
+
+### Unified Interface (`unified_interface.html`)
+- **Split-screen layout**: PDF viewer on left, transcription on right
+- **Real-time updates**: Slides change as you speak commands
+- **Connection status**: Visual indicators for all services
+- **Responsive design**: Works on various screen sizes
+
+### PDF Viewer (`pdf_viewer.html`)
+- **Standalone viewer**: View PDF without other features
+- **Manual controls**: Button-based navigation
+- **High-quality rendering**: Crisp, clear slides
+- **Slide counter**: Shows current slide and total
+
+## 🧪 Testing the System
+
+### Basic Test Flow
+
+1. **Start all servers** (wait for "Ready" messages)
+2. **Open unified interface** in browser
+3. **Click "Start System"**
+4. **Say "next slide"** - Should advance to slide 2
+5. **Say "previous slide"** - Should return to slide 1
+6. **Check terminal outputs** - See orchestrator logs
+
+### Verifying Components
+
+**Audio STT Working**:
+- Speak into microphone
+- See transcription appear in real-time
+- Check terminal: "Listening for audio to transcribe..."
+
+**Orchestrator Working**:
+- Say "next slide"
+- Terminal shows: "ORCHESTRATOR: Intent recognized from 'audio_stt'"
+- Terminal shows: "Delegating command: NEXT_SLIDE"
+
+**PDF Server Working**:
+- Slide image updates in browser
+- Terminal shows: "PDF Controller: Next slide -> X/Y"
+- Multiple clients can view simultaneously
+
+## 🛠️ Troubleshooting
 
 ### Port Already in Use
 ```bash
-# Kill process on port 8765 (audio server)
-lsof -ti:8765 | xargs kill -9
-
-# Kill process on port 8080 (VLM server)
-lsof -ti:8080 | xargs kill -9
+# Kill processes on specific ports
+lsof -ti:8765 | xargs kill -9  # Audio STT
+lsof -ti:9001 | xargs kill -9  # Orchestrator
+lsof -ti:9002 | xargs kill -9  # PDF Server
+lsof -ti:8080 | xargs kill -9  # VLM Server
 ```
 
-### Camera/Microphone Not Working
-- Ensure you're accessing via `localhost` or `https://` (required for browser permissions)
-- Check System Preferences → Privacy & Security → Camera/Microphone
-- Restart the browser after granting permissions
+### PDF Not Loading
+- Ensure `try.pdf` exists in project root
+- Check PDF server terminal for errors
+- Verify PyMuPDF installed: `pip install PyMuPDF`
 
-### VLM Server Not Responding
-- Wait for model download to complete (first run only)
-- Check terminal for errors
-- Ensure port 8080 is not blocked by firewall
+### Voice Commands Not Working
+- Verify audio server is connected to orchestrator
+- Check orchestrator terminal for received messages
+- Speak clearly and include exact trigger phrases
+- Ensure microphone permissions granted
 
-## Use Cases
+### Slides Not Updating
+- Check PDF server connection in orchestrator terminal
+- Verify browser WebSocket connection (unified_interface.html)
+- Look for errors in browser console (F12)
 
-- 🤖 **Accessibility**: Visual assistance with voice queries
-- 📹 **Real-time video analysis**: Security, monitoring, object detection
-- 🎓 **Education**: Interactive learning with multimodal AI
-- 🎮 **Gaming**: Voice-controlled visual game analysis
-- 🔬 **Research**: Multimodal AI experimentation
-- 💼 **Presentations**: Live demo of AI capabilities
+### NumPy/PyTorch Errors
+```bash
+pip uninstall numpy
+pip install "numpy<2.0"
+pip install torch
+```
 
-## Technical Details
+## 🔮 Future Enhancements
 
-- **VLM Model**: SmolVLM-500M-Instruct (GGUF format)
-- **STT Model**: Moshi STT 1B (English/French)
-- **Frameworks**: llama.cpp, PyTorch, WebSockets
-- **Frontend**: Vanilla JavaScript (no frameworks required)
-- **Backend**: Python asyncio + WebSocket server
+### Planned Features
+- [ ] **SmolVLM Integration**: Vision-based slide navigation
+- [ ] **Real Camera Control**: PTZ camera integration
+- [ ] **Natural Language Understanding**: More flexible command parsing
+- [ ] **Slide Content Analysis**: VLM reads and answers questions about slides
+- [ ] **Multi-presentation Support**: Switch between different PDFs
+- [ ] **Presentation Notes**: Display speaker notes synchronized with slides
+- [ ] **Recording**: Save presentation with voice and slide timing
+- [ ] **Remote Control**: Mobile app interface
 
-## Credits
+### Extending the System
+
+**Add New Voice Commands**:
+Edit `orchestrator.py`:
+```python
+def _initialize_rules(self):
+    return {
+        'audio_stt': [
+            {
+                'trigger': 'your custom phrase',
+                'action': 'YOUR_ACTION',
+                'params': {'key': 'value'}
+            },
+        ]
+    }
+```
+
+**Implement Camera Control**:
+Edit `CameraController.py` to integrate with actual camera hardware or software APIs.
+
+**Change PDF File**:
+Modify `pdf_server.py`:
+```python
+pdf_path = Path("your_presentation.pdf")
+```
+
+## 🎓 Use Cases
+
+- 🎤 **Voice-Controlled Presentations**: Hands-free slide navigation during talks
+- ♿ **Accessibility**: Assistive technology for users with mobility limitations
+- 📹 **Remote Presentations**: Control slides via voice in video conferences
+- 🤖 **AI Research**: Study multimodal agent architectures
+- 🎓 **Education**: Interactive teaching with voice-controlled content
+- 🔬 **Demo Systems**: Showcase AI capabilities to stakeholders
+- 💼 **Corporate Training**: Hands-free training presentations
+
+## 📚 Technical Details
+
+### Models
+- **Audio STT**: Moshi STT 1B (~1-2GB download)
+- **Vision VLM**: SmolVLM-500M-Instruct GGUF (~500MB download)
+- **PDF Rendering**: PyMuPDF (MuPDF engine)
+
+### Frameworks & Libraries
+- **Backend**: Python 3.12, asyncio, WebSockets
+- **AI Models**: PyTorch, llama.cpp, Moshi
+- **PDF Processing**: PyMuPDF (fitz), Pillow
+- **Audio**: PyAudio, PortAudio
+- **Frontend**: Vanilla JavaScript, WebSocket API
+
+### Communication Protocol
+- **Format**: JSON over WebSocket
+- **Message Structure**:
+  ```json
+  {
+    "source": "audio_stt",
+    "content": "transcribed text"
+  }
+  ```
+- **Command Structure**:
+  ```json
+  {
+    "action": "NEXT_SLIDE",
+    "params": {}
+  }
+  ```
+
+### Performance
+- **Audio Latency**: ~80-100ms (STT processing)
+- **Command Recognition**: <50ms (Orchestrator)
+- **Slide Update**: ~100-200ms (Render + Network)
+- **End-to-End**: ~250-400ms (Speech → Slide change)
 
 - [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct) by HuggingFace
-- [Moshi STT](https://huggingface.co/kyutai) by Kyutai
+- [kyutaiSTT](https://huggingface.co/kyutai) by Kyutai
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml.org
 
 ## License
