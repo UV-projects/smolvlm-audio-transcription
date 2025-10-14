@@ -8,6 +8,8 @@ import asyncio
 import json
 import websockets
 from typing import Dict, Any, Optional
+from collections import deque
+import time
 
 # Global set to store all connected clients
 CONNECTED_CLIENTS = set()
@@ -23,6 +25,11 @@ class OrchestratorAgent:
 
     def __init__(self):
         self.rules = self._initialize_rules()
+        # Phrase buffer to accumulate recent words for multi-word trigger matching
+        self.phrase_buffer = deque(maxlen=10)  # Keep last 10 words
+        self.phrase_timestamps = deque(maxlen=10)  # Track when each word arrived
+        self.phrase_window = 3.0  # Seconds - words within this window form a phrase
+        self.triggered_phrases = {}  # Track recently triggered phrases to avoid duplicates
 
     def _initialize_rules(self):
         """Initialize the rule-based decision engine"""
@@ -34,12 +41,12 @@ class OrchestratorAgent:
                     'params': {}
                 },
                 {
-                    'trigger': 'next slide',
+                    'trigger': 'next',
                     'action': 'NEXT_SLIDE',
                     'params': {}
                 },
                 {
-                    'trigger': 'previous slide',
+                    'trigger': 'previous',
                     'action': 'PREVIOUS_SLIDE',
                     'params': {}
                 },
@@ -63,6 +70,30 @@ class OrchestratorAgent:
             ]
         }
 
+    def _clean_old_phrases(self):
+        """Remove words from buffer that are older than the phrase window"""
+        current_time = time.time()
+        while self.phrase_timestamps and (current_time - self.phrase_timestamps[0]) > self.phrase_window:
+            self.phrase_timestamps.popleft()
+            self.phrase_buffer.popleft()
+
+    def _get_recent_phrase(self) -> str:
+        """Get the accumulated phrase from recent words"""
+        self._clean_old_phrases()
+        return ' '.join(self.phrase_buffer).lower()
+
+    def _was_recently_triggered(self, action: str, cooldown: float = 2.0) -> bool:
+        """Check if an action was recently triggered to avoid duplicates"""
+        current_time = time.time()
+        if action in self.triggered_phrases:
+            if (current_time - self.triggered_phrases[action]) < cooldown:
+                return True
+        return False
+
+    def _mark_triggered(self, action: str):
+        """Mark an action as recently triggered"""
+        self.triggered_phrases[action] = time.time()
+
     def parse_message(self, message: str) -> Dict[str, Any]:
         """Parse incoming JSON message from perception agents"""
         try:
@@ -79,12 +110,31 @@ class OrchestratorAgent:
         """
         Apply rule-based logic to determine if action is needed.
         Checks content against triggers and delegates commands.
+        Uses phrase buffering for multi-word triggers.
         """
         source = data.get('source')
-        content = data.get('content', '').lower()
+        content = data.get('content', '').strip()
 
         if not source or not content:
             return
+
+        # For audio STT, add word to phrase buffer
+        if source == 'audio_stt':
+            # Add each word separately to buffer
+            words = content.lower().split()
+            for word in words:
+                self.phrase_buffer.append(word)
+                self.phrase_timestamps.append(time.time())
+
+            # Get the accumulated recent phrase
+            recent_phrase = self._get_recent_phrase()
+
+            # Debug: print the current phrase buffer
+            print(f"ORCHESTRATOR: Phrase buffer: '{recent_phrase}'")
+
+        else:
+            # For vision or other sources, use content directly
+            recent_phrase = content.lower()
 
         # Get rules for this source
         source_rules = self.rules.get(source, [])
@@ -92,17 +142,45 @@ class OrchestratorAgent:
         # Check each rule
         for rule in source_rules:
             trigger = rule['trigger'].lower()
-            if trigger in content:
-                action = rule['action']
-                params = rule['params']
+            action = rule['action']
+            params = rule['params']
 
-                # Delegate action (stubbed for PoC)
-                self._delegate_action(source, action, params, content)
+            # Check if trigger phrase is in the recent phrase
+            if trigger in recent_phrase:
+                # Avoid triggering the same action multiple times in quick succession
+                if not self._was_recently_triggered(action):
+                    print(f"ORCHESTRATOR: ✓ Matched trigger '{trigger}' in phrase: '{recent_phrase}'")
+                    self._mark_triggered(action)
+                    # Delegate action - schedule as async task
+                    asyncio.create_task(self._delegate_action_async(source, action, params, recent_phrase))
+                else:
+                    print(f"ORCHESTRATOR: ⊘ Trigger '{trigger}' on cooldown, skipping...")
+
+    async def _delegate_action_async(self, source: str, action: str, params: Dict, content: str):
+        """
+        Async version of delegate action that properly awaits PDF server commands.
+        """
+        print("\n" + "="*60)
+        print(f"ORCHESTRATOR: Intent recognized from '{source}'")
+        print(f"ORCHESTRATOR: Trigger content: {content[:50]}...")
+
+        if params:
+            param_str = ', '.join([f"{k}='{v}'" for k, v in params.items()])
+            print(f"ORCHESTRATOR: Delegating command: {action}({param_str})")
+        else:
+            print(f"ORCHESTRATOR: Delegating command: {action}")
+
+        print("="*60 + "\n")
+
+        # Send command to PDF server if it's a slide action
+        if action in ['OPEN_PRESENTATION', 'NEXT_SLIDE', 'PREVIOUS_SLIDE', 'GO_TO_SLIDE']:
+            await send_to_pdf_server(action, params)
 
     def _delegate_action(self, source: str, action: str, params: Dict, content: str):
         """
         Delegate actions to executive agents.
         Now actually sends commands to PDF server.
+        DEPRECATED - use _delegate_action_async instead
         """
         print("\n" + "="*60)
         print(f"ORCHESTRATOR: Intent recognized from '{source}'")
