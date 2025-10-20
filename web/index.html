@@ -129,7 +129,7 @@
         let intervalId;
         let isProcessing = false;
 
-        instructionText.value = "What do you see?"; // default instruction
+        instructionText.value = "give a description of the pose of the human"; // default instruction
 
         // --- VLM Functions ---
 
@@ -183,7 +183,6 @@
             try {
                 const response = await sendChatCompletionRequest(instruction, imageBase64URL);
                 responseText.value = response;
-
                 // NEW: Forward to Orchestrator
                 if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
                     const orchestratorPayload = {

@@ -305,7 +305,7 @@
 
                 <div class="input-group">
                     <label for="instructionText">Instruction for VLM:</label>
-                    <textarea id="instructionText" rows="2" placeholder="What do you see?">What do you see?</textarea>
+                    <textarea id="instructionText" rows="2" placeholder="What do you see?">You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.</textarea>
                 </div>
 
                 <div class="input-group">
@@ -440,12 +440,15 @@
 
         // VLM Functions
         async function sendChatCompletionRequest(instruction, imageBase64URL) {
+            const systemPrompt = "You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.";
+
             const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     max_tokens: 100,
                     messages: [
+                        { role: 'system', content: systemPrompt },
                         { role: 'user', content: [
                             { type: 'text', text: instruction },
                             { type: 'image_url', image_url: { url: imageBase64URL } }

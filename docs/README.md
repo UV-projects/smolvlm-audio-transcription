@@ -1,4 +1,3 @@
-
 ## 🤝 Credits
 # SmolVLM + Audio + PDF Presentation Control System
 
@@ -14,14 +13,6 @@ This project is an **intelligent multimodal presentation control system** that c
 - Browser may require HTTPS for microphone in production
 - Camera controller is currently a stub implementation
 
-## 💡 Tips
-
-- Use a good quality microphone for better recognition
-- Speak clearly and at moderate pace
-- Keep PDF file size reasonable (<50MB) for best performance
-- Place the PDF file in the project root directory
-- Check all terminal windows for error messages
-- Use `./start_all.sh` for hassle-free startup
 
 ---
 
@@ -30,7 +21,7 @@ This project is an **intelligent multimodal presentation control system** that c
 ## 🎯 What This Project Does
 
 ### 🎤 Real-time Audio Transcription (STT Agent)
-- Continuously listens to your microphone using **Moshi STT** model
+- Continuously listens to your microphone using **Vosk STT** model
 - Transcribes speech to text in real-time with low latency
 - Sends transcriptions to the Orchestrator for command recognition
 - Supports natural language commands like "next slide", "previous slide", "open presentation"
@@ -79,7 +70,7 @@ This project is an **intelligent multimodal presentation control system** that c
 │  Audio STT       │      │  PDF Server      │
 │  (Perception)    │      │  (Executive)     │
 │  Port: 8765      │      │  Port: 9002      │
-│  - Moshi Model   │      │  - PyMuPDF       │
+│  - Vosk Model    │      │  - PyMuPDF       │
 │  - Real-time STT │      │  - Slide Render  │
 └────────┬─────────┘      └──────────▲───────┘
          │                           │
@@ -152,7 +143,7 @@ pip install torch sentencepiece websockets pyaudio moshi PyMuPDF Pillow
 
 ### Running the Complete System
 
-**Option 1: Automated Startup (Recommended)**
+**Automated Startup**
 ```bash
 chmod +x start_all.sh
 ./start_all.sh
@@ -164,35 +155,6 @@ This script will:
 3. Launch the unified web interface
 4. Wait 10 seconds for initialization
 
-**Option 2: Manual Startup**
-
-Open 4 separate terminal windows:
-
-**Terminal 1 - VLM Server (Optional)**:
-```bash
-llama-server -hf ggml-org/SmolVLM-500M-Instruct-GGUF -ngl 99
-```
-
-**Terminal 2 - PDF Server**:
-```bash
-cd /path/to/smolvlm+audio
-source .venv/bin/activate
-python pdf_server.py
-```
-
-**Terminal 3 - Orchestrator**:
-```bash
-cd /path/to/smolvlm+audio
-source .venv/bin/activate
-python orchestrator.py
-```
-
-**Terminal 4 - Audio STT Server**:
-```bash
-cd /path/to/smolvlm+audio
-source .venv/bin/activate
-python main.py
-```
 
 **Then open the GUI**:
 ```bash
@@ -241,7 +203,7 @@ The system recognizes the following natural language commands:
 
 ### Audio STT Server (`main.py`)
 - **Port**: 8765
-- **Model**: Moshi STT 1B (English/French)
+- **Model**: Vosk STT (English/French)
 - **Device**: Auto-detects MPS (Apple Silicon) or CPU
 - **Sample Rate**: 24kHz
 - **Chunk Duration**: ~80ms for low latency
@@ -254,7 +216,7 @@ The system recognizes the following natural language commands:
 
 ### VLM Server (Optional)
 - **Port**: 8080
-- **Model**: SmolVLM-500M-Instruct
+- **Model**: SmolVLM2-500M-Instruct
 - **GPU Acceleration**: Enabled with `-ngl 99`
 
 ## 📁 Project Structure
@@ -404,8 +366,8 @@ pdf_path = Path("your_presentation.pdf")
 ## 📚 Technical Details
 
 ### Models
-- **Audio STT**: Moshi STT 1B (~1-2GB download)
-- **Vision VLM**: SmolVLM-500M-Instruct GGUF (~500MB download)
+- **Audio STT**: Vosk STT (~1-2GB download)
+- **Vision VLM**: SmolVLM2-500M-Instruct GGUF (~500MB download)
 - **PDF Rendering**: PyMuPDF (MuPDF engine)
 
 ### Frameworks & Libraries
@@ -438,8 +400,8 @@ pdf_path = Path("your_presentation.pdf")
 - **Slide Update**: ~100-200ms (Render + Network)
 - **End-to-End**: ~250-400ms (Speech → Slide change)
 
-- [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct) by HuggingFace
-- [kyutaiSTT](https://huggingface.co/kyutai) by Kyutai
+- [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Instruct) by HuggingFace
+- [Vosk](https://github.com/Jay113910/Speech-to-Text-Vosk) by Jay113910
 - [llama.cpp](https://github.com/ggml-org/llama.cpp) by ggml.org
 
 ## License

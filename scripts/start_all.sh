@@ -30,22 +30,22 @@ echo ""
 
 # Terminal 1: VLM Server (llama-server)
 echo "✓ Opening Terminal 1: VLM Server (llama-server)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server -hf ggml-org/SmolVLM-500M-Instruct-GGUF -ngl 99\""
+osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server -hf ggml-org/SmolVLM2-500M-Video-Instruct-GGUF -ngl 99\""
 sleep 2
 
 # Terminal 2: PDF Server
 echo "✓ Opening Terminal 2: PDF Server (try.pdf)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'PDF SERVER (Port 9002)' && echo '========================================' && echo '' && python pdf_server.py\""
+osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'PDF SERVER (Port 9002)' && echo '========================================' && echo '' && python src/presenter/pdf_server.py\""
 sleep 2
 
 # Terminal 3: Orchestrator
 echo "✓ Opening Terminal 3: Orchestrator..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'ORCHESTRATOR (Port 9001)' && echo '========================================' && echo '' && python orchestrator.py\""
+osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'ORCHESTRATOR (Port 9001)' && echo '========================================' && echo '' && python src/orchestrator/orchestrator.py\""
 sleep 2
 
 # Terminal 4: Audio Server
 echo "✓ Opening Terminal 4: Audio Server (Speech-to-Text)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'AUDIO SERVER (Port 8765)' && echo '========================================' && echo '' && python main.py\""
+osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'AUDIO SERVER (Port 8765)' && echo '========================================' && echo '' && python src/audio/main.py\""
 sleep 3
 
 echo ""
@@ -60,7 +60,7 @@ sleep 10
 
 # Open the unified GUI
 echo "✓ Opening Unified GUI Interface..."
-open "file://${PROJECT_DIR}/unified_interface.html"
+open "file://${PROJECT_DIR}/web/unified_interface.html"
 
 echo ""
 echo "=========================================="

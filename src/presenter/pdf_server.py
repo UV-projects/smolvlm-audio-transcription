@@ -201,7 +201,7 @@ async def route_connection(websocket):
 
 async def main():
     """Start the PDF server"""
-    pdf_path = Path("try.pdf")
+    pdf_path = Path(__file__).parent.parent.parent / "data" / "try.pdf"
 
     if not pdf_path.exists():
         print(f"ERROR: PDF file not found: {pdf_path}")
