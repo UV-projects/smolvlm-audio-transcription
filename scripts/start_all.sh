@@ -20,32 +20,33 @@ echo "Press Ctrl+C to cancel"
 echo ""
 sleep 3
 
-# Get the absolute path to the project directory
-PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Get the absolute path to the project directory (one level up from the script)
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 
 echo "=========================================="
-echo "Starting all servers..."
+echo "Starting all servers in the background..."
+echo "Project directory: $PROJECT_DIR"
 echo "=========================================="
 echo ""
 
 # Terminal 1: VLM Server (llama-server)
-echo "✓ Opening Terminal 1: VLM Server (llama-server)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server -hf ggml-org/SmolVLM2-500M-Video-Instruct-GGUF -ngl 99\""
+echo "✓ Starting Terminal 1: VLM Server (llama-server, version b6610)..."
+(cd "$PROJECT_DIR" && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server -hf ggml-org/SmolVLM2-500M-Video-Instruct-GGUF --host 0.0.0.0) &
 sleep 2
 
 # Terminal 2: PDF Server
-echo "✓ Opening Terminal 2: PDF Server (try.pdf)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'PDF SERVER (Port 9002)' && echo '========================================' && echo '' && python src/presenter/pdf_server.py\""
+echo "✓ Starting Terminal 2: PDF Server (try.pdf)..."
+(cd "$PROJECT_DIR" && echo '========================================' && echo 'PDF SERVER (Port 9002)' && echo '========================================' && echo '' && python src/presenter/pdf_server.py) &
 sleep 2
 
 # Terminal 3: Orchestrator
-echo "✓ Opening Terminal 3: Orchestrator..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'ORCHESTRATOR (Port 9001)' && echo '========================================' && echo '' && python src/orchestrator/orchestrator.py\""
+echo "✓ Starting Terminal 3: Orchestrator..."
+(cd "$PROJECT_DIR" && echo '========================================' && echo 'ORCHESTRATOR (Port 9001)' && echo '========================================' && echo '' && python src/orchestrator/orchestrator.py) &
 sleep 2
 
 # Terminal 4: Audio Server
-echo "✓ Opening Terminal 4: Audio Server (Speech-to-Text)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$PROJECT_DIR' && echo '========================================' && echo 'AUDIO SERVER (Port 8765)' && echo '========================================' && echo '' && python src/audio/main.py\""
+echo "✓ Starting Terminal 4: Audio Server (Speech-to-Text)..."
+(cd "$PROJECT_DIR" && echo '========================================' && echo 'AUDIO SERVER (Port 8765)' && echo '========================================' && echo '' && python src/audio/main.py) &
 sleep 3
 
 echo ""
@@ -60,7 +61,8 @@ sleep 10
 
 # Open the unified GUI
 echo "✓ Opening Unified GUI Interface..."
-open "file://${PROJECT_DIR}/web/unified_interface.html"
+# The open command is for macOS, xdg-open is for Linux. This will try both.
+open "file://${PROJECT_DIR}/web/unified_interface.html" || xdg-open "file://${PROJECT_DIR}/web/unified_interface.html"
 
 echo ""
 echo "=========================================="
