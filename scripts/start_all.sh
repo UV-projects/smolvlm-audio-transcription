@@ -31,7 +31,38 @@ echo ""
 
 # Terminal 1: VLM Server (llama-server)
 echo "✓ Starting Terminal 1: VLM Server (llama-server, version b6610)..."
-(cd "$PROJECT_DIR" && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server -hf ggml-org/SmolVLM2-500M-Video-Instruct-GGUF --host 0.0.0.0) &
+# Download mmproj file first using llama-server in a way that caches it
+echo "Downloading vision model components..."
+(cd "$PROJECT_DIR" && llama-server --hf-repo ggml-org/SmolVLM2-2.2B-Instruct-GGUF --hf-file mmproj-SmolVLM2-2.2B-Instruct-f16.gguf --version > /dev/null 2>&1 || true) &
+DOWNLOAD_PID=$!
+sleep 5
+kill $DOWNLOAD_PID 2>/dev/null || true
+wait $DOWNLOAD_PID 2>/dev/null || true
+
+# Now start the actual server with both files
+# Detect OS for correct cache path
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    MMPROJ_FILE="$HOME/Library/Caches/llama.cpp/ggml-org_SmolVLM2-2.2B-Instruct-GGUF_mmproj-SmolVLM2-2.2B-Instruct-f16.gguf"
+else
+    # Assume Linux-like
+    MMPROJ_FILE="$HOME/.cache/llama.cpp/ggml-org_SmolVLM2-2.2B-Instruct-GGUF_mmproj-SmolVLM2-2.2B-Instruct-f16.gguf"
+fi
+
+# Check if the mmproj file exists before trying to use it
+if [ ! -f "$MMPROJ_FILE" ]; then
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!! ERROR: Vision model file not found! !!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "Looked for mmproj file at: $MMPROJ_FILE"
+    echo "The script tried to download it, but it might have failed."
+    echo "Please try running this command manually to download the vision model components:"
+    echo "llama-server --hf-repo ggml-org/SmolVLM2-2.2B-Instruct-GGUF --hf-file mmproj-SmolVLM2-2.2B-Instruct-f16.gguf --version"
+    echo "Aborting startup."
+    exit 1
+fi
+
+(cd "$PROJECT_DIR" && echo '========================================' && echo 'VLM SERVER (Port 8080)' && echo '========================================' && echo '' && llama-server --hf-repo ggml-org/SmolVLM2-2.2B-Instruct-GGUF --hf-file SmolVLM2-2.2B-Instruct-Q4_K_M.gguf --mmproj "$MMPROJ_FILE" --host 0.0.0.0) &
 sleep 2
 
 # Terminal 2: PDF Server
