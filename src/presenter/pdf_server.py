@@ -253,7 +253,7 @@ async def main():
     print("Server will start without a PDF loaded.")
     print("Upload a PDF through the web interface.")
 
-    host = "localhost"
+    host = "0.0.0.0"
     port = 9002
 
     print(f"WebSocket server: ws://{host}:{port}")
