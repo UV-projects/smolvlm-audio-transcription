@@ -65,5 +65,5 @@ echo '========================================'
 echo 'AUDIO SERVER (Port 2700)'
 echo '========================================'
 echo ''
-python src/audio/audio.py $1 &
+python src/audio/audio.py models/vosk-model-en-us-0.42-gigaspeech $1 &
 sleep 5
