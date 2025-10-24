@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unified Presentation Control - VLM + STT + PDF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Settings Icon */
+        .settings-icon {
+            margin: 10px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            transition: transform 0.2s;
+        }
+
+        .settings-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .settings-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: #667eea;
+        }
+
+        /* Sidebar Toggle Button */
+        .sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px 0 0 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.3);
+            z-index: 999;
+            transition: right 0.3s, transform 0.2s;
+            writing-mode: vertical-rl;
+            font-weight: bold;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .sidebar-toggle.sidebar-open {
+            right: 350px;
+        }
+
+        /* Settings Popup */
+        .settings-popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1001;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-popup.active {
+            display: flex;
+        }
+
+        .settings-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .settings-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 30px;
+            height: 30px;
+            border: none;
+            background: #f44336;
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-close:hover {
+            background: #d32f2f;
+        }
+
+        .settings-title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .settings-section {
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .settings-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .settings-section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .config-group {
+            margin-bottom: 20px;
+        }
+
+        .config-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .config-group input,
+        .config-group textarea,
+        .config-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .config-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Main Layout */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden;
+            transition: margin-right 0.3s;
+        }
+
+        .main-content.sidebar-open {
+            margin-right: 0;
+        }
+
+        .sidebar {
+            width: 350px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.2);
+            position: fixed;
+            right: -350px;
+            top: 0;
+            height: 100vh;
+            transition: right 0.3s;
+            z-index: 998;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar.open {
+            right: 0;
+        }
+
+        /* PDF Viewer Section */
+        .pdf-section {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pdf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .pdf-title {
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #pdfConnectionStatus {
+            margin-right: 40px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+
+        /* PDF Upload Section */
+        .pdf-upload-section {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .upload-button {
+            background-color: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .upload-button:hover {
+            background-color: #5568d3;
+        }
+
+        #pdfFileInput {
+            display: none;
+        }
+
+        /* Fullscreen Button */
+        .fullscreen-button {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+
+        .fullscreen-button:hover {
+            background-color: #1976D2;
+        }
+
+        #slideContainer {
+            height: calc(70vh - 40px);
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            margin-bottom: 15px;
+        }
+
+        #slideImage {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .loading-message {
+            color: white;
+            font-size: 18px;
+        }
+
+        .pdf-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pdf-controls button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .pdf-controls button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+
+        .pdf-controls button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            color: white;
+            font-size: 14px;
+        }
+
+        /* Transcription Section - Takes most of sidebar */
+        .transcription-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+            min-height: 0;
+        }
+
+        .transcription-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .transcription-box {
+            background: #f5f5f5;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #333;
+        }
+
+        /* VLM Response - Compact at bottom */
+        .vlm-compact {
+            background: #e8f4f8;
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #333;
+            max-height: 60px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .vlm-compact-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2196F3;
+            margin-bottom: 5px;
+        }
+
+        /* Video Feed - Draggable */
+        .video-container {
+            position: fixed;
+            width: 200px;
+            height: 150px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 1001;
+            cursor: move;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .video-container.dragging {
+            opacity: 0.8;
+            cursor: grabbing;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Canvas for capturing frames */
+        #captureCanvas {
+            display: none;
+        }
+
+        /* Orchestrator Status - Minimal */
+        .orchestrator-minimal {
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .status-inactive {
+            background-color: #e0e0e0;
+            color: #666;
+        }
+
+        .status-listening {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .status-processing {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        /* Hidden elements */
+        .stt-section,
+        .vlm-section,
+        .orchestrator-section {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        INFO ▶
+    </div>
+
+    <!-- Settings Popup -->
+    <div class="settings-popup" id="settingsPopup">
+        <div class="settings-content">
+            <button class="settings-close" onclick="toggleSettings()">×</button>
+            <h2 class="settings-title">Settings</h2>
+
+            <!-- VLM Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">🤖 VLM Settings (llama.cpp)</div>
+
+                <div class="config-group">
+                    <label for="vlmServerUrl">llama.cpp Server URL:</label>
+                    <input type="text" id="vlmServerUrl" value="http://localhost:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                </div>
+
+                <div class="config-group">
+                    <label for="vlmInstruction">Instruction for VLM:</label>
+                    <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.</textarea>
+                </div>
+
+                <div class="config-group">
+                    <label for="captureInterval">Camera Capture Interval:</label>
+                    <select id="captureInterval">
+                        <option value="100">100ms</option>
+                        <option value="250">250ms</option>
+                        <option value="500" selected>500ms</option>
+                        <option value="1000">1 second</option>
+                        <option value="2000">2 seconds</option>
+                        <option value="5000">5 seconds</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Audio/STT Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">🎤 Audio Settings</div>
+
+                <div class="config-group">
+                    <label for="sttServerIp">Speech-to-Text Server IP:</label>
+                    <input type="text" id="sttServerIp" value="ws://localhost:8700" placeholder="e.g., ws://10.42.0.108:2700">
+                </div>
+            </div>
+
+            <!-- Orchestrator Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">🎯 Orchestrator Settings</div>
+
+                <div class="config-group">
+                    <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
+                    <input type="text" id="orchestratorUrl" value="ws://localhost:9001" placeholder="e.g., ws://localhost:9001">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Main Content (PDF Viewer) -->
+        <div class="main-content" id="mainContent">
+            <div class="pdf-section">
+                <!-- Settings Icon -->
+                <div class="settings-icon" onclick="toggleSettings()">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    </svg>
+                </div>
+                <div class="pdf-header">
+                    <span class="pdf-title">📄 PDF Slide Viewer</span>
+                    <span id="pdfConnectionStatus" class="disconnected">Disconnected</span>
+                </div>
+
+                <!-- PDF Upload Section -->
+                <div class="pdf-upload-section">
+                    <input type="file" id="pdfFileInput" accept=".pdf" onchange="handlePdfUpload(event)">
+                    <button class="upload-button" onclick="document.getElementById('pdfFileInput').click()">
+                        📤 Upload PDF
+                    </button>
+                    <button class="fullscreen-button" onclick="toggleFullscreen()">
+                        🖵 Fullscreen
+                    </button>
+                </div>
+
+                <div id="slideContainer">
+                    <img id="slideImage" style="display: none;" alt="Presentation Slide">
+                    <div id="loadingMessage" class="loading-message">Waiting for PDF connection...</div>
+                </div>
+
+                <div class="pdf-controls">
+                    <button id="prevBtn" onclick="previousSlide()" disabled>◄ Previous</button>
+                    <span class="page-info" id="pageInfo">Page 0 / 0</span>
+                    <button id="nextBtn" onclick="nextSlide()" disabled>Next ►</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar (Transcription and VLM Response) -->
+        <div class="sidebar" id="sidebar">
+            <!-- Transcription Section - Takes most space -->
+            <div class="transcription-section">
+                <div class="transcription-title">📝 Live Transcription</div>
+                <div class="transcription-box" id="transcriptionBox">
+                    <em style="color: #999;">Transcription will appear here...</em>
+                </div>
+            </div>
+
+            <!-- VLM Response - Compact at bottom -->
+            <div>
+                <div class="vlm-compact-title">🤖 VLM Analysis</div>
+                <div class="vlm-compact" id="vlmResponse">
+                    <em style="color: #999;">VLM analysis will appear here...</em>
+                </div>
+            </div>
+
+            <!-- Orchestrator Status - Minimal -->
+            <div class="orchestrator-minimal" id="orchestratorStatus">
+                🎯 Orchestrator: Disconnected
+            </div>
+        </div>
+
+        <!-- Video Container (Draggable) -->
+        <div class="video-container" id="videoContainer">
+            <video id="videoElement" autoplay muted></video>
+        </div>
+
+        <!-- Hidden canvas for capturing frames -->
+        <canvas id="captureCanvas"></canvas>
+    </div>
+
+    <script>
+        // Sidebar toggle
+        let sidebarOpen = false;
+
+        function toggleSidebar() {
+            sidebarOpen = !sidebarOpen;
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+
+            if (sidebarOpen) {
+                sidebar.classList.add('open');
+                sidebarToggle.classList.add('sidebar-open');
+                sidebarToggle.textContent = '◀ INFO';
+            } else {
+                sidebar.classList.remove('open');
+                sidebarToggle.classList.remove('sidebar-open');
+                sidebarToggle.textContent = 'INFO ▶';
+            }
+        }
+
+        // Settings popup toggle
+        function toggleSettings() {
+            const popup = document.getElementById('settingsPopup');
+            popup.classList.toggle('active');
+        }
+
+        // Fullscreen toggle
+        function toggleFullscreen() {
+            const container = document.getElementById('slideContainer');
+
+            if (!document.fullscreenElement) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    container.webkitRequestFullscreen();
+                } else if (container.msRequestFullscreen) {
+                    container.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        }
+
+        // Draggable video container
+        let isDragging = false;
+        let currentX, currentY, initialX, initialY;
+        let videoContainer = document.getElementById('videoContainer');
+
+        // Set initial position (bottom-right)
+        videoContainer.style.bottom = '20px';
+        videoContainer.style.right = '20px';
+
+        videoContainer.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+
+        function dragStart(e) {
+            initialX = e.clientX - videoContainer.offsetLeft;
+            initialY = e.clientY - videoContainer.offsetTop;
+
+            if (e.target === videoContainer || e.target.tagName === 'VIDEO') {
+                isDragging = true;
+                videoContainer.classList.add('dragging');
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+
+                // Keep within viewport bounds
+                const maxX = window.innerWidth - videoContainer.offsetWidth;
+                const maxY = window.innerHeight - videoContainer.offsetHeight;
+
+                currentX = Math.max(0, Math.min(currentX, maxX));
+                currentY = Math.max(0, Math.min(currentY, maxY));
+
+                // Snap to edges
+                const snapDistance = 50;
+                if (currentX < snapDistance) currentX = 0;
+                if (currentX > maxX - snapDistance) currentX = maxX;
+                if (currentY < snapDistance) currentY = 0;
+                if (currentY > maxY - snapDistance) currentY = maxY;
+
+                videoContainer.style.left = currentX + 'px';
+                videoContainer.style.top = currentY + 'px';
+                videoContainer.style.bottom = 'auto';
+                videoContainer.style.right = 'auto';
+            }
+        }
+
+        function dragEnd(e) {
+            isDragging = false;
+            videoContainer.classList.remove('dragging');
+        }
+
+        // Global variables
+        let ws = null;
+        let currentPage = 0;
+        let totalPages = 0;
+        let recognition = null;
+        let vlmIntervalId = null;
+        let videoStream = null;
+        let sttWebSocket = null;
+        let orchestratorSocket = null;
+
+        // PDF Upload Handler
+        async function handlePdfUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file');
+                return;
+            }
+
+            console.log('Uploading PDF:', file.name);
+            document.getElementById('loadingMessage').textContent = 'Uploading PDF...';
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('slideImage').style.display = 'none';
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const arrayBuffer = e.target.result;
+                    const base64String = btoa(
+                        new Uint8Array(arrayBuffer).reduce(
+                            (data, byte) => data + String.fromCharCode(byte), ''
+                        )
+                    );
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            command: 'upload_pdf',
+                            pdf_data: base64String
+                        }));
+                    } else {
+                        alert('WebSocket not connected. Please wait and try again.');
+                        document.getElementById('loadingMessage').textContent = 'Connection error';
+                    }
+                };
+
+                reader.onerror = function() {
+                    alert('Error reading file');
+                    document.getElementById('loadingMessage').textContent = 'Error reading file';
+                };
+
+                reader.readAsArrayBuffer(file);
+
+            } catch (error) {
+                console.error('Error uploading PDF:', error);
+                alert('Error uploading PDF: ' + error.message);
+                document.getElementById('loadingMessage').textContent = 'Upload failed';
+            }
+        }
+
+        // WebSocket connection for PDF viewer
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:9002/viewer');
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('pdfConnectionStatus').textContent = 'Connected';
+                document.getElementById('pdfConnectionStatus').className = 'connected';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'slide_update') {
+                    currentPage = data.slide_number + 1;
+                    totalPages = data.total_slides;
+
+                    const slideImage = document.getElementById('slideImage');
+                    const loadingMessage = document.getElementById('loadingMessage');
+
+                    slideImage.src = 'data:image/png;base64,' + data.image;
+                    slideImage.style.display = 'block';
+                    loadingMessage.style.display = 'none';
+
+                    updatePageInfo();
+                    updateNavigationButtons();
+                } 
+                else if (data.type === 'no_pdf') {
+                    document.getElementById('loadingMessage').textContent = data.message;
+                    document.getElementById('loadingMessage').style.display = 'block';
+                    document.getElementById('slideImage').style.display = 'none';
+                }
+                else if (data.type === 'upload_success') {
+                    console.log('PDF uploaded successfully:', data.message);
+                    document.getElementById('loadingMessage').textContent = 'PDF loaded successfully!';
+                }
+                else if (data.type === 'upload_error') {
+                    console.error('PDF upload error:', data.message);
+                    alert('Upload error: ' + data.message);
+                    document.getElementById('loadingMessage').textContent = data.message;
+                    document.getElementById('loadingMessage').style.display = 'block';
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                document.getElementById('pdfConnectionStatus').textContent = 'Disconnected';
+                document.getElementById('pdfConnectionStatus').className = 'disconnected';
+
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function previousSlide() {
+            if (ws && ws.readyState === WebSocket.OPEN && currentPage > 1) {
+                ws.send(JSON.stringify({ command: 'previous' }));
+            }
+        }
+
+        function nextSlide() {
+            if (ws && ws.readyState === WebSocket.OPEN && currentPage < totalPages) {
+                ws.send(JSON.stringify({ command: 'next' }));
+            }
+        }
+
+        function updatePageInfo() {
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} / ${totalPages}`;
+        }
+
+        function updateNavigationButtons() {
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        // Orchestrator WebSocket
+        function setupOrchestratorWebSocket() {
+            if (orchestratorSocket) {
+                orchestratorSocket.close();
+            }
+
+            const orchestratorUrl = document.getElementById('orchestratorUrl').value;
+            orchestratorSocket = new WebSocket(orchestratorUrl);
+
+            orchestratorSocket.onopen = () => {
+                console.log('Orchestrator connected');
+                document.getElementById('orchestratorStatus').textContent = '🎯 Orchestrator: Connected';
+                document.getElementById('orchestratorStatus').className = 'orchestrator-minimal status-listening';
+            };
+
+            orchestratorSocket.onmessage = (event) => {
+                console.log('Orchestrator message:', event.data);
+            };
+
+            orchestratorSocket.onclose = () => {
+                console.log('Orchestrator disconnected');
+                document.getElementById('orchestratorStatus').textContent = '🎯 Orchestrator: Disconnected';
+                document.getElementById('orchestratorStatus').className = 'orchestrator-minimal status-inactive';
+            };
+
+            orchestratorSocket.onerror = (error) => {
+                console.error('Orchestrator error:', error);
+                document.getElementById('orchestratorStatus').textContent = '🎯 Orchestrator: Error';
+                document.getElementById('orchestratorStatus').className = 'orchestrator-minimal disconnected';
+            };
+        }
+
+        // Capture frame from video feed
+        function captureVideoFrame() {
+            const video = document.getElementById('videoElement');
+            const canvas = document.getElementById('captureCanvas');
+
+            if (!video.videoWidth || !video.videoHeight) {
+                console.warn('Video not ready for capture');
+                return null;
+            }
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        // Speech-to-Text functionality (auto-start)
+        function initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    console.log('Speech recognition started');
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) {
+                            finalTranscript += transcript + ' ';
+                        }
+                    }
+
+                    if (finalTranscript) {
+                        addTranscription(finalTranscript.trim());
+
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            const orchestratorPayload = {
+                                source: 'audio_stt',
+                                content: finalTranscript.trim()
+                            };
+                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                        }
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                };
+
+                recognition.onend = () => {
+                    console.log('Speech recognition ended, restarting...');
+                    setTimeout(() => recognition.start(), 100);
+                };
+
+                // Auto-start
+                recognition.start();
+            } else {
+                console.log('Using WebSocket-based STT');
+                const sttServerIp = document.getElementById('sttServerIp').value;
+                connectSTTWebSocket(sttServerIp);
+            }
+        }
+
+        function connectSTTWebSocket(serverUrl) {
+            if (sttWebSocket) {
+                sttWebSocket.close();
+            }
+
+            sttWebSocket = new WebSocket(serverUrl);
+            sttWebSocket.binaryType = 'arraybuffer';
+
+            sttWebSocket.onopen = async () => {
+                console.log('STT WebSocket connected');
+
+                try {
+                    const audioStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 1,
+                            sampleRate: 16000,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    const microphone = audioContext.createMediaStreamSource(audioStream);
+                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                    processor.onaudioprocess = (e) => {
+                        if (sttWebSocket && sttWebSocket.readyState === WebSocket.OPEN) {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const int16Data = new Int16Array(inputData.length);
+
+                            for (let i = 0; i < inputData.length; i++) {
+                                const s = Math.max(-1, Math.min(1, inputData[i]));
+                                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            }
+
+                            sttWebSocket.send(int16Data.buffer);
+                        }
+                    };
+
+                    microphone.connect(processor);
+                    processor.connect(audioContext.destination);
+                } catch (err) {
+                    console.error('Microphone access error:', err);
+                    addTranscription('Microphone error: ' + err.message);
+                }
+            };
+
+            sttWebSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.text !== undefined && data.text !== '') {
+                        addTranscription(data.text);
+
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            const orchestratorPayload = {
+                                source: 'audio_stt',
+                                content: data.text
+                            };
+                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error parsing STT message:', err);
+                }
+            };
+
+            sttWebSocket.onclose = () => {
+                console.log('STT WebSocket disconnected, reconnecting...');
+                setTimeout(() => connectSTTWebSocket(serverUrl), 3000);
+            };
+
+            sttWebSocket.onerror = (error) => {
+                console.error('STT WebSocket error:', error);
+            };
+        }
+
+        function addTranscription(text) {
+            const transcriptionBox = document.getElementById('transcriptionBox');
+
+            if (transcriptionBox.querySelector('em')) {
+                transcriptionBox.innerHTML = '';
+            }
+
+            if (transcriptionBox.textContent.length > 0) {
+                transcriptionBox.textContent += ' ' + text;
+            } else {
+                transcriptionBox.textContent = text;
+            }
+
+            transcriptionBox.scrollTop = transcriptionBox.scrollHeight;
+        }
+
+        // VLM functionality (auto-start)
+        async function startVLM() {
+            const vlmServerUrl = document.getElementById('vlmServerUrl').value;
+            const vlmInstruction = document.getElementById('vlmInstruction').value;
+            const captureIntervalMs = parseInt(document.getElementById('captureInterval').value);
+
+            const performQuery = async () => {
+                const imageBase64 = captureVideoFrame();
+
+                if (!imageBase64) {
+                    return;
+                }
+
+                try {
+                    const base64Data = imageBase64.split(',')[1];
+
+                    const requestBody = {
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    {
+                                        type: "text",
+                                        text: vlmInstruction
+                                    },
+                                    {
+                                        type: "image_url",
+                                        image_url: {
+                                            url: `data:image/jpeg;base64,${base64Data}`
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 500
+                    };
+
+                    const response = await fetch(vlmServerUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const vlmResponseText = data.choices?.[0]?.message?.content || 'No response received.';
+
+                    document.getElementById('vlmResponse').innerHTML = vlmResponseText;
+
+                    if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                        const orchestratorPayload = {
+                            source: 'vision-vlm',
+                            content: vlmResponseText
+                        };
+                        orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                    }
+
+                } catch (error) {
+                    console.error('VLM query error:', error);
+                }
+            };
+
+            await performQuery();
+            vlmIntervalId = setInterval(performQuery, captureIntervalMs);
+        }
+
+        // Video feed
+        async function initializeVideoFeed() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                document.getElementById('videoElement').srcObject = videoStream;
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+            }
+        }
+
+        // Initialize everything on page load (auto-start)
+        window.onload = () => {
+            connectWebSocket();
+            initializeVideoFeed();
+            setupOrchestratorWebSocket();
+
+            // Wait for video to be ready before starting STT and VLM
+            setTimeout(() => {
+                initializeSpeechRecognition();
+                startVLM();
+            }, 1000);
+        };
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                previousSlide();
+            } else if (e.key === 'ArrowRight') {
+                nextSlide();
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+            if (ws) {
+                ws.close();
+            }
+            if (sttWebSocket) {
+                sttWebSocket.close();
+            }
+            if (orchestratorSocket) {
+                orchestratorSocket.close();
+            }
+            if (vlmIntervalId) {
+                clearInterval(vlmIntervalId);
+            }
+            if (recognition) {
+                recognition.stop();
+            }
+        });
+    </script>
+</body>
+</html>
