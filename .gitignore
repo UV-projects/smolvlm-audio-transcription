@@ -35,3 +35,8 @@ models/
 # Environment variables
 .env
 
+# Llama.cpp and vosk files
+build/
+llama.zip
+vosk.zip
+
