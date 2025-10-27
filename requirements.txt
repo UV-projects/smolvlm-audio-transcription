@@ -1,6 +1,6 @@
 torch
 pyaudio
-numpy<2.0
+numpy
 websockets==13.1
 PyMuPDF
 Pillow
