@@ -489,23 +489,23 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://localhost:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
                     <label for="vlmInstruction">Instruction for VLM:</label>
-                    <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.</textarea>
+                    <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">Describe the pose of the person in 8 words or fewer. Do not add any context to the output.</textarea>
                 </div>
 
                 <div class="config-group">
                     <label for="captureInterval">Camera Capture Interval:</label>
-                    <select id="captureInterval">
+                    <select onchange="reloadWithInterval(this.value)" id="captureInterval">
                         <option value="100">100ms</option>
                         <option value="250">250ms</option>
-                        <option value="500" selected>500ms</option>
+                        <option value="500">500ms</option>
                         <option value="1000">1 second</option>
                         <option value="2000">2 seconds</option>
-                        <option value="5000">5 seconds</option>
+                        <option value="5000" selected>5 seconds</option>
                     </select>
                 </div>
             </div>
@@ -516,7 +516,7 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://localhost:8700" placeholder="e.g., ws://10.42.0.108:2700">
+                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://10.42.0.108:2700">
                 </div>
             </div>
 
@@ -526,7 +526,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://localhost:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -605,6 +605,21 @@
     </div>
 
     <script>
+
+        // Function to reload page with new interval
+        function reloadWithInterval(intervalValue) {
+            const url = new URL(window.location);
+            url.searchParams.set('interval', intervalValue);
+            window.location.href = url.toString();
+        }
+
+        // Function to get interval from URL or use default
+        function getIntervalFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const interval = urlParams.get('interval');
+            return interval ? parseInt(interval) : 500; // default 500ms
+        }
+
         // Sidebar toggle
         let sidebarOpen = false;
 
@@ -616,7 +631,7 @@
             if (sidebarOpen) {
                 sidebar.classList.add('open');
                 sidebarToggle.classList.add('sidebar-open');
-                sidebarToggle.textContent = '◀ INFO';
+                sidebarToggle.textContent = 'INFO ◀';
             } else {
                 sidebar.classList.remove('open');
                 sidebarToggle.classList.remove('sidebar-open');
@@ -717,6 +732,7 @@
         let videoStream = null;
         let sttWebSocket = null;
         let orchestratorSocket = null;
+        let currentCaptureInterval = parseInt(document.getElementById('captureInterval').value);
 
         // PDF Upload Handler
         async function handlePdfUpload(event) {
@@ -770,7 +786,7 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:9002/viewer');
+            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -937,10 +953,10 @@
                     console.error('Speech recognition error:', event.error);
                 };
 
-                recognition.onend = () => {
+                /*recognition.onend = () => {
                     console.log('Speech recognition ended, restarting...');
                     setTimeout(() => recognition.start(), 100);
-                };
+                };*/
 
                 // Auto-start
                 recognition.start();
@@ -1018,10 +1034,10 @@
                 }
             };
 
-            sttWebSocket.onclose = () => {
+            /*sttWebSocket.onclose = () => {
                 console.log('STT WebSocket disconnected, reconnecting...');
                 setTimeout(() => connectSTTWebSocket(serverUrl), 3000);
-            };
+            };*/
 
             sttWebSocket.onerror = (error) => {
                 console.error('STT WebSocket error:', error);
@@ -1048,9 +1064,23 @@
         async function startVLM() {
             const vlmServerUrl = document.getElementById('vlmServerUrl').value;
             const vlmInstruction = document.getElementById('vlmInstruction').value;
-            const captureIntervalMs = parseInt(document.getElementById('captureInterval').value);
+            const systemPrompt = "You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.";
+            let captureIntervalMs = parseInt(document.getElementById('captureInterval').value);
 
             const performQuery = async () => {
+                // Check if interval has changed
+                const newInterval = parseInt(document.getElementById('captureInterval').value);
+
+                if (currentCaptureInterval !== newInterval) {
+                    console.log(`Interval changed from ${currentCaptureInterval}ms to ${newInterval}ms - restarting`);
+                    clearInterval(vlmIntervalId);
+                    captureIntervalMs = newInterval;
+                    currentCaptureInterval = newInterval;
+                    vlmIntervalId = setInterval(performQuery, newInterval);
+                    return;
+                }
+
+                currentCaptureInterval = newInterval;
                 const imageBase64 = captureVideoFrame();
 
                 if (!imageBase64) {
@@ -1060,34 +1090,20 @@
                 try {
                     const base64Data = imageBase64.split(',')[1];
 
-                    const requestBody = {
-                        messages: [
-                            {
-                                role: "user",
-                                content: [
-                                    {
-                                        type: "text",
-                                        text: vlmInstruction
-                                    },
-                                    {
-                                        type: "image_url",
-                                        image_url: {
-                                            url: `data:image/jpeg;base64,${base64Data}`
-                                        }
-                                    }
-                                ]
-                            }
-                        ],
-                        temperature: 0.7,
-                        max_tokens: 500
-                    };
-
                     const response = await fetch(vlmServerUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(requestBody)
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            max_tokens: 100,
+                            temperature: 0.9,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: [
+                                    { type: 'text', text: vlmInstruction },
+                                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+                                ] },
+                            ]
+                        })
                     });
 
                     if (!response.ok) {
@@ -1114,6 +1130,7 @@
 
             await performQuery();
             vlmIntervalId = setInterval(performQuery, captureIntervalMs);
+
         }
 
         // Video feed
@@ -1128,6 +1145,8 @@
 
         // Initialize everything on page load (auto-start)
         window.onload = () => {
+            const interval = getIntervalFromURL();
+            document.getElementById('captureInterval').value = interval;
             connectWebSocket();
             initializeVideoFeed();
             setupOrchestratorWebSocket();
