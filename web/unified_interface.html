@@ -300,12 +300,12 @@
 
                 <div class="input-group">
                     <label for="baseURL">VLM Server URL:</label>
-                    <input type="text" id="baseURL" value="http://localhost:8080">
+                    <input type="text" id="baseURL" value="http://localhost:11434">
                 </div>
 
                 <div class="input-group">
                     <label for="instructionText">Instruction for VLM:</label>
-                    <textarea id="instructionText" rows="2" placeholder="What do you see?">You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.</textarea>
+                    <textarea id="instructionText" rows="2" placeholder="What do you see?">You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning. MAXIMUM 8 WORDS OR FEWER</textarea>
                 </div>
 
                 <div class="input-group">
@@ -440,20 +440,21 @@
 
         // VLM Functions
         async function sendChatCompletionRequest(instruction, imageBase64URL) {
-            const systemPrompt = "You are a vision analysis expert specializing in human pose detection and kinesics. You provide precise, structured observations focusing on body spatial positioning.";
-
-            const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
+            const response = await fetch(`${baseURL.value}/api/chat`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
-                    max_tokens: 100,
+                    model: "qwen3-vl:2b-instruct", // or another vision model like "llava:7b", "llava:13b", "bakllava"
                     messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: [
-                            { type: 'text', text: instruction },
-                            { type: 'image_url', image_url: { url: imageBase64URL } }
-                        ] },
-                    ]
+                        {
+                            role: "user",
+                            content: instruction,
+                            images: [imageBase64URL.split(',')[1]] // Remove data:image/jpeg;base64, prefix
+                        }
+                    ],
+                    stream: false
                 })
             });
             if (!response.ok) {
@@ -461,7 +462,7 @@
                 return `Server error: ${response.status} - ${errorData}`;
             }
             const data = await response.json();
-            return data.choices[0].message.content;
+            return data.message.content;
         }
 
         function captureImage() {
