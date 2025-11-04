@@ -1,0 +1,52 @@
+{
+    "models": {
+        "stt": {
+            "small": {
+                "repo": "kyutai/stt-1b-en_fr",
+                "name": "Moshi STT 1B",
+                "description": "Fast, accurate for English and French",
+                "vram_gb": 2
+            },
+            "medium": {
+                "repo": "kyutai/stt-2b-en_fr",
+                "name": "Moshi STT 2B",
+                "description": "More accurate, slower",
+                "vram_gb": 4
+            }
+        },
+        "vlm": {
+            "small": {
+                "repo": "HuggingFaceTB/SmolVLM-500M-Instruct",
+                "name": "SmolVLM 500M",
+                "description": "Fast vision model for real-time analysis",
+                "vram_gb": 2
+            },
+            "medium": {
+                "repo": "HuggingFaceTB/SmolVLM-Instruct",
+                "name": "SmolVLM 1.7B",
+                "description": "More detailed visual understanding",
+                "vram_gb": 4
+            }
+        }
+    },
+    "active_models": {
+        "stt": "small",
+        "vlm": "small"
+    },
+    "server": {
+        "host": "localhost",
+        "websocket_port": 8765,
+        "http_port": 8000,
+        "max_concurrent_streams": 4
+    },
+    "video": {
+        "default_fps": 30,
+        "frame_queue_size": 10,
+        "enable_audio": true,
+        "loop_video": true
+    },
+    "device": {
+        "prefer_cuda": true,
+        "fallback_to_cpu": true
+    }
+}

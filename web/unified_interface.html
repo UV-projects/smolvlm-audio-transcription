@@ -36,6 +36,10 @@
             gap: 20px;
             margin-bottom: 20px;
         }
+        
+        .main-layout.full-width {
+            grid-template-columns: 1fr;
+        }
 
         /* PDF Viewer Section */
         .pdf-section {
@@ -155,6 +159,15 @@
             border-radius: 8px;
             background-color: #000;
             margin-bottom: 15px;
+            object-fit: contain;  /* Maintain aspect ratio */
+        }
+        
+        #videoFileFrame {
+            width: 100%;
+            max-height: 400px;
+            border: 3px solid #667eea;
+            border-radius: 8px;
+            object-fit: contain;  /* Maintain aspect ratio */
         }
 
         .input-group {
@@ -271,10 +284,17 @@
 <body>
     <div class="container">
         <h1>🎯 Unified Presentation Control System</h1>
+        
+        <div style="text-align: center; margin-bottom: 15px;">
+            <label style="cursor: pointer; background: white; padding: 10px 20px; border-radius: 5px; display: inline-block;">
+                <input type="checkbox" id="showPdfToggle" checked onchange="togglePdfSection()">
+                <span>📊 Show PDF Section</span>
+            </label>
+        </div>
 
-        <div class="main-layout">
+        <div class="main-layout" id="mainLayout">
             <!-- LEFT: PDF Presentation Viewer -->
-            <div class="pdf-section">
+            <div class="pdf-section" id="pdfSection">
                 <div class="pdf-header">
                     <div class="pdf-title">📊 Presentation Slides</div>
                     <div id="pdfConnectionStatus" class="disconnected">Disconnected</div>
@@ -294,13 +314,20 @@
 
             <!-- RIGHT: Video Feed & Controls -->
             <div class="control-section">
-                <div class="section-title">🎥 Live Camera Feed</div>
+                <div class="section-title">
+                    🎥 Live Feed
+                    <select id="videoSourceSelect" style="float: right; padding: 5px; margin-left: 10px;">
+                        <option value="webcam" selected>📹 Webcam</option>
+                        <option value="video">🎬 Video File</option>
+                    </select>
+                </div>
                 <video id="videoFeed" autoplay playsinline></video>
                 <canvas id="canvas" class="hidden"></canvas>
+                <img id="videoFileFrame" style="display: none; width: 100%; max-height: 400px; border: 3px solid #667eea; border-radius: 8px;" alt="Video Frame">
 
                 <div class="input-group">
                     <label for="baseURL">VLM Server URL:</label>
-                    <input type="text" id="baseURL" value="http://localhost:11434">
+                    <input type="text" id="baseURL" value="http://localhost:8080">
                 </div>
 
                 <div class="input-group">
@@ -440,20 +467,32 @@
 
         // VLM Functions
         async function sendChatCompletionRequest(instruction, imageBase64URL) {
-            const response = await fetch(`${baseURL.value}/api/chat`, {
+            const response = await fetch(`${baseURL.value}/v1/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "qwen3-vl:2b-instruct", // or another vision model like "llava:7b", "llava:13b", "bakllava"
+                    model: "Qwen3VL-2B-Instruct-Q4_K_M",
                     messages: [
                         {
                             role: "user",
-                            content: instruction,
-                            images: [imageBase64URL.split(',')[1]] // Remove data:image/jpeg;base64, prefix
+                            content: [
+                                {
+                                    type: "text",
+                                    text: instruction
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: {
+                                        url: imageBase64URL
+                                    }
+                                }
+                            ]
                         }
                     ],
+                    max_tokens: 100,
+                    temperature: 0.1,
                     stream: false
                 })
             });
@@ -462,7 +501,7 @@
                 return `Server error: ${response.status} - ${errorData}`;
             }
             const data = await response.json();
-            return data.message.content;
+            return data.choices[0].message.content;
         }
 
         function captureImage() {
@@ -569,7 +608,7 @@
 
         // Start/Stop handlers
         function handleStart() {
-            if (!stream) {
+            if (!stream && currentVideoSource === 'webcam') {
                 alert("Camera not available. Please grant permission first.");
                 return;
             }
@@ -620,6 +659,221 @@
             sttResponseText.value += "\n[System stopped]";
         }
 
+        // ========== VIDEO FILE SUPPORT ==========
+        const videoSourceSelect = document.getElementById('videoSourceSelect');
+        const videoFileFrame = document.getElementById('videoFileFrame');
+        let videoSocket = null;
+        let currentVideoSource = 'webcam';
+
+        // Handle video source switching
+        videoSourceSelect.addEventListener('change', function() {
+            const newSource = this.value;
+            
+            if (isProcessing) {
+                alert('Please stop the system before switching video source');
+                this.value = currentVideoSource;
+                return;
+            }
+            
+            currentVideoSource = newSource;
+            
+            if (newSource === 'webcam') {
+                // Switch to webcam
+                video.style.display = 'block';
+                videoFileFrame.style.display = 'none';
+                if (videoSocket) {
+                    videoSocket.close();
+                    videoSocket = null;
+                }
+                responseText.value = "Switched to webcam mode";
+            } else {
+                // Switch to video file
+                video.style.display = 'none';
+                videoFileFrame.style.display = 'block';
+                responseText.value = "Switched to video file mode. Make sure video_analyzer.py is running.";
+            }
+        });
+
+        // Connect to video analyzer server
+        function setupVideoFileWebSocket() {
+            if (videoSocket) videoSocket.close();
+
+            videoSocket = new WebSocket('ws://localhost:8766');
+
+            videoSocket.onopen = function() {
+                console.log("Video analyzer connected");
+                responseText.value = "Video analyzer connected - sending frames to VLM...";
+            };
+
+            videoSocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'video_frame') {
+                        // Display video frame
+                        const frameData = 'data:image/jpeg;base64,' + data.data;
+                        videoFileFrame.src = frameData;
+                        
+                        // Send frame to VLM for analysis (like webcam does)
+                        if (isProcessing) {
+                            sendFrameToVLM(frameData);
+                        }
+                    } else if (data.type === 'transcription_partial') {
+                        // Real-time partial transcription (updates in place)
+                        const lines = sttResponseText.value.split('\n');
+                        
+                        // If last line is empty or final, add new partial line
+                        if (lines.length === 0 || lines[lines.length - 1].indexOf('[...') === -1) {
+                            sttResponseText.value += '[...] ' + data.text;
+                        } else {
+                            // Update existing partial line
+                            lines[lines.length - 1] = '[...] ' + data.text;
+                            sttResponseText.value = lines.join('\n');
+                        }
+                        sttResponseText.scrollTop = sttResponseText.scrollHeight;
+                        
+                    } else if (data.type === 'transcription') {
+                        // Final transcription - replace partial if exists
+                        const lines = sttResponseText.value.split('\n');
+                        
+                        if (lines.length > 0 && lines[lines.length - 1].indexOf('[...') === 0) {
+                            // Replace partial with final
+                            lines[lines.length - 1] = data.text.trim();
+                            sttResponseText.value = lines.join('\n');
+                        } else {
+                            // Add new final transcription
+                            sttResponseText.value += data.text;
+                        }
+                        sttResponseText.scrollTop = sttResponseText.scrollHeight;
+                        
+                    } else if (data.type === 'vision_analysis') {
+                        // Display analysis result
+                        responseText.value = data.description;
+                        
+                        // Also send to orchestrator if needed
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            orchestratorSocket.send(JSON.stringify({
+                                source: 'vision_video',
+                                content: data.description
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing video message:', e);
+                }
+            };
+
+            videoSocket.onclose = function() {
+                console.log("Video analyzer disconnected");
+                responseText.value += "\n[Video analyzer disconnected]";
+            };
+
+            videoSocket.onerror = function(error) {
+                console.error("Video analyzer error:", error);
+                responseText.value = "[Error: Video analyzer not running. Start video_analyzer.py]";
+            };
+        }
+        
+        // Send frame to VLM (for video file mode)
+        let lastVLMCallTime = 0;
+        const VLM_CALL_INTERVAL = 500; // Call VLM every 500ms (not every frame)
+        
+        async function sendFrameToVLM(imageBase64URL) {
+            const now = Date.now();
+            if (now - lastVLMCallTime < VLM_CALL_INTERVAL) {
+                return; // Skip to avoid overloading
+            }
+            lastVLMCallTime = now;
+            
+            try {
+                const instruction = instructionText.value;
+                const result = await sendChatCompletionRequest(instruction, imageBase64URL);
+                responseText.value = result;
+                
+                // Send to orchestrator
+                if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                    orchestratorSocket.send(JSON.stringify({
+                        source: 'vision_vlm',
+                        content: result
+                    }));
+                }
+            } catch (error) {
+                console.error('VLM error:', error);
+            }
+        }
+
+        // Modified handleStart to support both modes
+        function handleStartOriginal() {
+            if (currentVideoSource === 'webcam' && !stream) {
+                alert("Camera not available. Please grant permission first.");
+                return;
+            }
+
+            isProcessing = true;
+            startButton.textContent = "⏹ Stop System";
+            startButton.classList.remove('start');
+            startButton.classList.add('stop');
+            systemStatus.classList.remove('inactive');
+            systemStatus.classList.add('active');
+            systemStatusText.textContent = "System Running";
+
+            instructionText.disabled = true;
+            intervalSelect.disabled = true;
+            baseURL.disabled = true;
+
+            responseText.value = "System started...";
+
+            if (currentVideoSource === 'webcam') {
+                // Original webcam logic
+                const intervalMs = parseInt(intervalSelect.value, 10);
+                sendData();
+                intervalId = setInterval(sendData, intervalMs);
+            } else {
+                // Video file logic - connect to video analyzer
+                setupVideoFileWebSocket();
+            }
+
+            setupSttWebSocket();
+            setupOrchestratorWebSocket();
+        }
+
+        // Override handleStart
+        function handleStart() {
+            handleStartOriginal();
+        }
+
+        // Modified handleStop to cleanup video socket
+        function handleStopOriginal() {
+            isProcessing = false;
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+
+            if (sttSocket) sttSocket.close();
+            if (orchestratorSocket) orchestratorSocket.close();
+            if (videoSocket) videoSocket.close();
+
+            startButton.textContent = "▶ Start System";
+            startButton.classList.remove('stop');
+            startButton.classList.add('start');
+            systemStatus.classList.remove('active');
+            systemStatus.classList.add('inactive');
+            systemStatusText.textContent = "System Idle";
+
+            instructionText.disabled = false;
+            intervalSelect.disabled = false;
+            baseURL.disabled = false;
+
+            responseText.value = "System stopped.";
+            sttResponseText.value += "\n[System stopped]";
+        }
+
+        // Override handleStop
+        function handleStop() {
+            handleStopOriginal();
+        }
+
         // Event Listeners
         startButton.addEventListener('click', () => {
             if (isProcessing) {
@@ -639,6 +893,21 @@
                 previousSlide();
             }
         });
+        
+        // Toggle PDF section visibility
+        function togglePdfSection() {
+            const showPdf = document.getElementById('showPdfToggle').checked;
+            const pdfSection = document.getElementById('pdfSection');
+            const mainLayout = document.getElementById('mainLayout');
+            
+            if (showPdf) {
+                pdfSection.style.display = 'block';
+                mainLayout.classList.remove('full-width');
+            } else {
+                pdfSection.style.display = 'none';
+                mainLayout.classList.add('full-width');
+            }
+        }
 
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', () => {

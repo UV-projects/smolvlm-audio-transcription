@@ -67,6 +67,23 @@ class OrchestratorAgent:
                     'action': 'ZOOM_ON_OBJECT',
                     'params': {'target': 'bottle'}
                 },
+            ],
+            'vision_video': [
+                {
+                    'trigger': 'cardboard',
+                    'action': 'ZOOM_ON_OBJECT',
+                    'params': {'target': 'cardboard'}
+                },
+                {
+                    'trigger': 'person',
+                    'action': 'ZOOM_ON_OBJECT',
+                    'params': {'target': 'person'}
+                },
+                {
+                    'trigger': 'bottle',
+                    'action': 'ZOOM_ON_OBJECT',
+                    'params': {'target': 'bottle'}
+                },
             ]
         }
 

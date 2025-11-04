@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Analyzer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        #videoFrame {
+            max-width: 100%;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        #log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Video Analyzer Test</h1>
+        
+        <div id="status" class="status disconnected">
+            ❌ Not connected
+        </div>
+        
+        <button onclick="connect()">Connect to Video Analyzer</button>
+        <button onclick="disconnect()">Disconnect</button>
+        
+        <h2>Video Stream:</h2>
+        <img id="videoFrame" alt="Video will appear here" style="display:none;">
+        <div id="placeholder" style="text-align:center; padding:40px; background:#eee; border-radius:8px;">
+            Waiting for video frames...
+        </div>
+        
+        <h2>Connection Log:</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        let frameCount = 0;
+        let startTime = null;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            if (socket) {
+                log('Already connected');
+                return;
+            }
+
+            log('Connecting to ws://localhost:8766...');
+            socket = new WebSocket('ws://localhost:8766');
+
+            socket.onopen = function() {
+                log('✅ Connected to video analyzer!');
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('status').textContent = '✅ Connected to ws://localhost:8766';
+                startTime = Date.now();
+                frameCount = 0;
+            };
+
+            socket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'video_frame') {
+                        frameCount++;
+                        const img = document.getElementById('videoFrame');
+                        img.src = 'data:image/jpeg;base64,' + data.data;
+                        img.style.display = 'block';
+                        document.getElementById('placeholder').style.display = 'none';
+                        
+                        // Log every 30 frames
+                        if (frameCount % 30 === 0) {
+                            const elapsed = (Date.now() - startTime) / 1000;
+                            const fps = frameCount / elapsed;
+                            log(`Received ${frameCount} frames (${fps.toFixed(1)} FPS avg)`);
+                        }
+                    } else {
+                        log(`Received: ${JSON.stringify(data)}`);
+                    }
+                } catch (e) {
+                    log(`Error parsing message: ${e.message}`);
+                }
+            };
+
+            socket.onclose = function() {
+                log('❌ Disconnected from video analyzer');
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('status').textContent = '❌ Disconnected';
+                socket = null;
+            };
+
+            socket.onerror = function(error) {
+                log(`❌ WebSocket error: ${error.message || 'Connection failed'}`);
+                log('Make sure video_analyzer.py is running!');
+            };
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+                log('Disconnected');
+            }
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded. Click "Connect" to start.');
+            log('Make sure video_analyzer.py is running with: python src\\vision\\video_analyzer.py ted-talk.mp4');
+        });
+    </script>
+</body>
+</html>

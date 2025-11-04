@@ -3,6 +3,7 @@ Real-time Speech-to-Text using Vosk STT model with microphone input
 MODIFIED TO RUN AS A WEBSOCKET SERVER
 """
 
+import os
 import threading
 import asyncio
 import websockets
@@ -59,17 +60,57 @@ async def connection_handler(websocket):
     Handle a new WebSocket connection, adding it to the global set
     and removing it when the connection closes.
     """
-    print(f"New client connected: {websocket.remote_address}")
+    print(f"New audio client connected: {websocket.remote_address}")
     CONNECTED_CLIENTS.add(websocket)
+    
+    # Create Vosk recognizer for this connection
+    import vosk
+    model_path = "Models/vosk-model-en-us-0.42-gigaspeech"
+    model = vosk.Model(model_path)
+    recognizer = vosk.KaldiRecognizer(model, 16000)
+    recognizer.SetWords(True)
+    
+    # Track last partial text to avoid duplicates
+    last_partial = ""
+    
     try:
-        # Keep connection alive until client disconnects
+        # Process incoming audio data
         async for message in websocket:
-            # Echo back any messages (optional)
-            pass
+            if isinstance(message, bytes):
+                # Binary audio data
+                if recognizer.AcceptWaveform(message):
+                    result = json.loads(recognizer.Result())
+                    text = result.get('text', '')
+                    if text:
+                        print(f"📝 Final: {text}")
+                        await websocket.send(json.dumps({"text": text}))
+                        on_transcription(text)
+                    last_partial = ""  # Reset partial
+                else:
+                    # Send partial results for real-time feedback
+                    partial_result = json.loads(recognizer.PartialResult())
+                    partial_text = partial_result.get('partial', '')
+                    
+                    # Only send if changed and has content
+                    if partial_text and partial_text != last_partial:
+                        print(f"📝 Partial: {partial_text}")
+                        await websocket.send(json.dumps({"partial": partial_text}))
+                        last_partial = partial_text
+            elif isinstance(message, str):
+                # Handle control messages (like EOF)
+                msg_data = json.loads(message)
+                if msg_data.get('eof'):
+                    # End of audio stream
+                    final_result = json.loads(recognizer.FinalResult())
+                    final_text = final_result.get('text', '')
+                    if final_text:
+                        print(f"📝 Final: {final_text}")
+                        on_transcription(final_text)
+                    
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
-        print(f"Client disconnected: {websocket.remote_address}")
+        print(f"Audio client disconnected: {websocket.remote_address}")
         CONNECTED_CLIENTS.discard(websocket)
 
 
@@ -101,23 +142,17 @@ async def main_async():
     MAIN_LOOP = asyncio.get_running_loop()
 
     # --- VOSK MODEL CONFIGURATION ---
-    # IMPORTANT: You need to download a Vosk model and place it in the `Models` directory.
-    # Download from: https://alphacephei.com/vosk/models
-    # For example, download 'vosk-model-small-en-us-0.15' and unzip it to 'Models/vosk-model-small-en-us-0.15'
+    # Model will be loaded per-connection when audio arrives
     model_path = "Models/vosk-model-en-us-0.42-gigaspeech"
-
-    try:
-        stt = VoskSTT(model_path=model_path)
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        print("Please make sure the Vosk model is in the correct path.")
+    
+    if not os.path.exists(model_path):
+        print(f"Error: Vosk model not found at {model_path}")
+        print("Please download a model from: https://alphacephei.com/vosk/models")
         return
 
-    # Start microphone capture and transcription in a separate thread
-    # so it doesn't block the async event loop
-    mic_thread = threading.Thread(target=stt.process_audio, args=(on_transcription,))
-    mic_thread.daemon = True
-    mic_thread.start()
+    # No need for microphone thread - we accept audio via WebSocket
+    print("\nListening for audio to transcribe... (Press Ctrl+C in console to stop server)")
+    print("-" * 50)
 
     # Start the WebSocket server
     host = "localhost"
