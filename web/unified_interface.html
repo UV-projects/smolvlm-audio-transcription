@@ -280,6 +280,13 @@
                     <div id="pdfConnectionStatus" class="disconnected">Disconnected</div>
                 </div>
 
+                <div class="pdf-upload-section" style="margin-bottom: 15px; text-align: center;">
+                    <input type="file" id="pdfFileInput" accept=".pdf" onchange="handlePdfUpload(event)" style="display: none;">
+                    <button class="upload-button" onclick="document.getElementById('pdfFileInput').click()" style="background-color: #667eea; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;">
+                        📤 Upload PDF
+                    </button>
+                </div>
+
                 <div id="slideContainer">
                     <img id="slideImage" alt="PDF Slide" style="display: none;">
                     <div id="loadingMessage" class="loading-message">Waiting for PDF server...</div>
@@ -331,9 +338,13 @@
                 <option value="2000">2s</option>
             </select>
             <button id="startButton" class="start">▶ Start System</button>
-            <div style="margin-left: 20px; color: white;">
+            <div style="margin-left: 20px;">
                 <span class="status-indicator inactive" id="systemStatus"></span>
                 <span id="systemStatusText">System Idle</span>
+            </div>
+            <div style="margin-left: 20px;">
+                <span class="status-indicator inactive" id="gestureStatus"></span>
+                <span id="gestureStatusText">Gesture Control</span>
             </div>
         </div>
     </div>
@@ -420,6 +431,55 @@
             }
         }
 
+        async function handlePdfUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file');
+                return;
+            }
+
+            console.log('Uploading PDF:', file.name);
+            document.getElementById('loadingMessage').textContent = 'Uploading PDF...';
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('slideImage').style.display = 'none';
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const arrayBuffer = e.target.result;
+                    const base64String = btoa(
+                        new Uint8Array(arrayBuffer).reduce(
+                            (data, byte) => data + String.fromCharCode(byte), ''
+                        )
+                    );
+
+                    if (pdfSocket && pdfSocket.readyState === WebSocket.OPEN) {
+                        pdfSocket.send(JSON.stringify({
+                            command: 'upload_pdf',
+                            pdf_data: base64String
+                        }));
+                    } else {
+                        alert('WebSocket not connected. Please wait and try again.');
+                        document.getElementById('loadingMessage').textContent = 'Connection error';
+                    }
+                };
+
+                reader.onerror = function() {
+                    alert('Error reading file');
+                    document.getElementById('loadingMessage').textContent = 'Error reading file';
+                };
+
+                reader.readAsArrayBuffer(file);
+
+            } catch (error) {
+                console.error('Error uploading PDF:', error);
+                alert('Error uploading PDF: ' + error.message);
+                document.getElementById('loadingMessage').textContent = 'Upload failed';
+            }
+        }
+
         // ========== VLM & STT LOGIC ==========
         const video = document.getElementById('videoFeed');
         const canvas = document.getElementById('canvas');
@@ -431,9 +491,12 @@
         const sttResponseText = document.getElementById('sttResponseText');
         const systemStatus = document.getElementById('systemStatus');
         const systemStatusText = document.getElementById('systemStatusText');
+        const gestureStatus = document.getElementById('gestureStatus');
+        const gestureStatusText = document.getElementById('gestureStatusText');
 
         let sttSocket;
         let orchestratorSocket;
+        let gestureSocket;
         let stream;
         let intervalId;
         let isProcessing = false;
@@ -553,6 +616,52 @@
             };
         }
 
+        // Gesture Control WebSocket
+        function setupGestureWebSocket() {
+            if (gestureSocket) gestureSocket.close();
+
+            gestureSocket = new WebSocket('ws://localhost:9003');
+
+            gestureSocket.onopen = function() {
+                console.log("Gesture control connected");
+                gestureStatus.classList.remove('inactive');
+                gestureStatus.classList.add('active');
+                gestureStatusText.textContent = "Gesture Control Active";
+            };
+
+            gestureSocket.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'gesture') {
+                        console.log('Received gesture:', data.action);
+                        if (data.action === 'next') {
+                            nextSlide();
+                        } else if (data.action === 'previous') {
+                            previousSlide();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing gesture message:', e);
+                }
+            };
+
+            gestureSocket.onclose = function() {
+                console.log("Gesture control disconnected");
+                gestureStatus.classList.remove('active');
+                gestureStatus.classList.add('inactive');
+                gestureStatusText.textContent = "Gesture Control";
+                // Optional: try to reconnect
+                setTimeout(setupGestureWebSocket, 5000);
+            };
+
+            gestureSocket.onerror = function(error) {
+                console.error("Gesture WebSocket error:", error);
+                gestureStatus.classList.remove('active');
+                gestureStatus.classList.add('inactive');
+                gestureStatusText.textContent = "Gesture Error";
+            };
+        }
+
         // Camera initialization
         async function initCamera() {
             try {
@@ -603,6 +712,7 @@
 
             if (sttSocket) sttSocket.close();
             if (orchestratorSocket) orchestratorSocket.close();
+            if (gestureSocket) gestureSocket.close();
 
             startButton.textContent = "▶ Start System";
             startButton.classList.remove('stop');
@@ -643,6 +753,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             initCamera();
             connectToPdfServer();
+            setupGestureWebSocket();
         });
 
         // Cleanup on page unload
@@ -653,8 +764,8 @@
             if (sttSocket) sttSocket.close();
             if (orchestratorSocket) orchestratorSocket.close();
             if (pdfSocket) pdfSocket.close();
+            if (gestureSocket) gestureSocket.close();
         });
     </script>
 </body>
 </html>
-

@@ -489,7 +489,7 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://localhost:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -516,7 +516,17 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://10.42.0.108:2700">
+                    <input type="text" id="sttServerIp" value="ws://localhost:2700" placeholder="e.g., ws://localhost:2700">
+                </div>
+            </div>
+
+            <!-- Gesture Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">👋 Gesture Settings</div>
+
+                <div class="config-group">
+                    <label for="gestureServerUrl">Gesture Server URL:</label>
+                    <input type="text" id="gestureServerUrl" value="ws://localhost:9002" placeholder="e.g., ws://localhost:9002">
                 </div>
             </div>
 
@@ -526,7 +536,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://localhost:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -544,7 +554,10 @@
                 </div>
                 <div class="pdf-header">
                     <span class="pdf-title">📄 PDF Slide Viewer</span>
-                    <span id="pdfConnectionStatus" class="disconnected">Disconnected</span>
+                    <div>
+                        <span id="pdfConnectionStatus" class="disconnected">PDF Disconnected</span>
+                        <span id="gestureConnectionStatus" class="disconnected">Gesture Disconnected</span>
+                    </div>
                 </div>
 
                 <!-- PDF Upload Section -->
@@ -586,6 +599,14 @@
                 <div class="vlm-compact-title">🤖 VLM Analysis</div>
                 <div class="vlm-compact" id="vlmResponse">
                     <em style="color: #999;">VLM analysis will appear here...</em>
+                </div>
+            </div>
+
+            <!-- Gesture Status -->
+            <div>
+                <div class="vlm-compact-title">👋 Gesture Status</div>
+                <div class="vlm-compact" id="gestureStatus">
+                    <em style="color: #999;">No gesture detected...</em>
                 </div>
             </div>
 
@@ -732,6 +753,7 @@
         let videoStream = null;
         let sttWebSocket = null;
         let orchestratorSocket = null;
+        let gestureSocket = null;
         let currentCaptureInterval = parseInt(document.getElementById('captureInterval').value);
 
         // PDF Upload Handler
@@ -786,7 +808,7 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
+            ws = new WebSocket('ws://localhost:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -894,85 +916,103 @@
             };
         }
 
-        // Capture frame from video feed
-        function captureVideoFrame() {
-            const video = document.getElementById('videoElement');
-            const canvas = document.getElementById('captureCanvas');
+        // Gesture WebSocket
+        function setupGestureSocket() {
+            gestureSocket = new WebSocket(gestureServerUrl);
 
-            if (!video.videoWidth || !video.videoHeight) {
-                console.warn('Video not ready for capture');
-                return null;
-            }
+            gestureSocket.onopen = () => {
+                console.log('Gesture WebSocket connected.');
+                gestureConnectionStatus.textContent = 'Gesture Connected';
+                gestureConnectionStatus.className = 'connected';
+            };
 
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            gestureSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'gesture') {
+                    gestureStatus.textContent = `Gesture: ${data.action}`;
+                    if (data.action === 'next') {
+                        nextSlide();
+                    } else if (data.action === 'previous') {
+                        previousSlide();
+                    }
+                }
+            };
 
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            gestureSocket.onclose = () => {
+                console.log('Gesture WebSocket disconnected. Retrying in 3 seconds...');
+                gestureConnectionStatus.textContent = 'Gesture Disconnected';
+                gestureConnectionStatus.className = 'disconnected';
+                setTimeout(setupGestureSocket, 3000);
+            };
 
-            return canvas.toDataURL('image/jpeg', 0.8);
+            gestureSocket.onerror = (error) => {
+                console.error('Gesture WebSocket error:', error);
+                gestureConnectionStatus.textContent = 'Gesture Error';
+                gestureConnectionStatus.className = 'disconnected';
+                gestureSocket.close();
+            };
         }
 
-        // Speech-to-Text functionality (auto-start)
-        function initializeSpeechRecognition() {
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition = new SpeechRecognition();
-                recognition.continuous = true;
-                recognition.interimResults = true;
-                recognition.lang = 'en-US';
+        // PDF WebSocket Functions
+        function setupPdfSocket() {
+            ws = new WebSocket('ws://localhost:9002/viewer');
 
-                recognition.onstart = () => {
-                    console.log('Speech recognition started');
-                };
+            ws.onopen = () => {
+                console.log('PDF WebSocket connected');
+                pdfConnectionStatus.textContent = 'PDF Connected';
+                pdfConnectionStatus.className = 'connected';
+            };
 
-                recognition.onresult = (event) => {
-                    let finalTranscript = '';
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
 
-                    for (let i = event.resultIndex; i < event.results.length; i++) {
-                        const transcript = event.results[i][0].transcript;
-                        if (event.results[i].isFinal) {
-                            finalTranscript += transcript + ' ';
-                        }
-                    }
+                if (data.type === 'slide_update') {
+                    currentPage = data.slide_number + 1;
+                    totalPages = data.total_slides;
 
-                    if (finalTranscript) {
-                        addTranscription(finalTranscript.trim());
+                    const slideImage = document.getElementById('slideImage');
+                    const loadingMessage = document.getElementById('loadingMessage');
 
-                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
-                            const orchestratorPayload = {
-                                source: 'audio_stt',
-                                content: finalTranscript.trim()
-                            };
-                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
-                        }
-                    }
-                };
+                    slideImage.src = 'data:image/png;base64,' + data.image;
+                    slideImage.style.display = 'block';
+                    loadingMessage.style.display = 'none';
 
-                recognition.onerror = (event) => {
-                    console.error('Speech recognition error:', event.error);
-                };
+                    updatePageInfo();
+                    updateNavigationButtons();
+                }
+                else if (data.type === 'no_pdf') {
+                    document.getElementById('loadingMessage').textContent = data.message;
+                    document.getElementById('loadingMessage').style.display = 'block';
+                    document.getElementById('slideImage').style.display = 'none';
+                }
+                else if (data.type === 'upload_success') {
+                    console.log('PDF uploaded successfully:', data.message);
+                    document.getElementById('loadingMessage').textContent = 'PDF loaded successfully!';
+                }
+                else if (data.type === 'upload_error') {
+                    console.error('PDF upload error:', data.message);
+                    alert('Upload error: ' + data.message);
+                    document.getElementById('loadingMessage').textContent = data.message;
+                    document.getElementById('loadingMessage').style.display = 'block';
+                }
+            };
 
-                /*recognition.onend = () => {
-                    console.log('Speech recognition ended, restarting...');
-                    setTimeout(() => recognition.start(), 100);
-                };*/
+            ws.onclose = () => {
+                console.log('PDF WebSocket disconnected');
+                pdfConnectionStatus.textContent = 'PDF Disconnected';
+                pdfConnectionStatus.className = 'disconnected';
 
-                // Auto-start
-                recognition.start();
-            } else {
-                console.log('Using WebSocket-based STT');
-                const sttServerIp = document.getElementById('sttServerIp').value;
-                connectSTTWebSocket(sttServerIp);
-            }
+                setTimeout(setupPdfSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('PDF WebSocket error:', error);
+            };
         }
 
-        function connectSTTWebSocket(serverUrl) {
-            if (sttWebSocket) {
-                sttWebSocket.close();
-            }
-
-            sttWebSocket = new WebSocket(serverUrl);
+        // STT WebSocket Functions
+        function setupSttSocket() {
+            sttWebSocket = new WebSocket(sttServerIp);
             sttWebSocket.binaryType = 'arraybuffer';
 
             sttWebSocket.onopen = async () => {
@@ -1150,6 +1190,7 @@
             connectWebSocket();
             initializeVideoFeed();
             setupOrchestratorWebSocket();
+            setupGestureSocket();
 
             // Wait for video to be ready before starting STT and VLM
             setTimeout(() => {
@@ -1180,6 +1221,9 @@
             }
             if (orchestratorSocket) {
                 orchestratorSocket.close();
+            }
+            if (gestureSocket) {
+                gestureSocket.close();
             }
             if (vlmIntervalId) {
                 clearInterval(vlmIntervalId);
