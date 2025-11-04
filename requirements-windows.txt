@@ -1,0 +1,23 @@
+# Requirements for Windows with CUDA support
+
+# NOTE: Install PyTorch with CUDA separately first!
+# Run this command BEFORE installing this file:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Core dependencies
+moshi
+sentencepiece
+numpy<2.0
+websockets
+
+# Video processing
+opencv-python
+ffmpeg-python
+
+# API Server (for n8n integration)
+fastapi
+uvicorn[standard]
+pydantic
+
+# Optional but recommended
+pillow
