@@ -88,8 +88,8 @@ async def main():
     os.chdir(project_root)
     print(f"Running server from directory: {os.getcwd()}")
 
-    async with websockets.serve(gesture_server, "localhost", 9003):
-        print("Gesture WebSocket server started on ws://localhost:9003")
+    async with websockets.serve(gesture_server, "0.0.0.0", 9003):
+        print("Gesture WebSocket server started on ws://0.0.0.0:9003")
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":

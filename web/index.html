@@ -489,7 +489,7 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://localhost:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -516,7 +516,7 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://localhost:2700" placeholder="e.g., ws://localhost:2700">
+                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://localhost:2700">
                 </div>
             </div>
 
@@ -526,7 +526,7 @@
 
                 <div class="config-group">
                     <label for="gestureServerUrl">Gesture Server URL:</label>
-                    <input type="text" id="gestureServerUrl" value="ws://localhost:9002" placeholder="e.g., ws://localhost:9002">
+                    <input type="text" id="gestureServerUrl" value="ws://10.42.0.108:9003" placeholder="e.g., ws://localhost:9003">
                 </div>
             </div>
 
@@ -536,7 +536,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://localhost:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -808,7 +808,7 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:9002/viewer');
+            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -918,7 +918,7 @@
 
         // Gesture WebSocket
         function setupGestureSocket() {
-            gestureSocket = new WebSocket(gestureServerUrl);
+            gestureSocket = new WebSocket(document.getElementById("gestureServerUrl").value);
 
             gestureSocket.onopen = () => {
                 console.log('Gesture WebSocket connected.');
@@ -953,9 +953,82 @@
             };
         }
 
+        // Capture frame from video feed
+        function captureVideoFrame() {
+            const video = document.getElementById('videoElement');
+            const canvas = document.getElementById('captureCanvas');
+
+            if (!video.videoWidth || !video.videoHeight) {
+                console.warn('Video not ready for capture');
+                return null;
+            }
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        // Speech-to-Text functionality (auto-start)
+        function initializeSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    console.log('Speech recognition started');
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const transcript = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) {
+                            finalTranscript += transcript + ' ';
+                        }
+                    }
+
+                    if (finalTranscript) {
+                        addTranscription(finalTranscript.trim());
+
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            const orchestratorPayload = {
+                                source: 'audio_stt',
+                                content: finalTranscript.trim()
+                            };
+                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                        }
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                };
+
+                /*recognition.onend = () => {
+                    console.log('Speech recognition ended, restarting...');
+                    setTimeout(() => recognition.start(), 100);
+                };*/
+
+                // Auto-start
+                recognition.start();
+            } else {
+                console.log('Using WebSocket-based STT');
+                const sttServerIp = document.getElementById('sttServerIp').value;
+                connectSTTWebSocket(sttServerIp);
+            }
+        }
+
         // PDF WebSocket Functions
         function setupPdfSocket() {
-            ws = new WebSocket('ws://localhost:9002/viewer');
+            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
 
             ws.onopen = () => {
                 console.log('PDF WebSocket connected');

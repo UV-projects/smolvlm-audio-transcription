@@ -33,9 +33,18 @@ fi
 if [ ! -f "$LLAMA_DIR" ]; then
    echo "Llama.cpp not found, downloading now..."
    echo ""
-   curl -L https://github.com/ggml-org/llama.cpp/releases/download/b6945/llama-b6945-bin-macos-x64.zip -o llama.zip && unzip llama.zip
+   if [[ $(uname) == "Linux" ]]; then
+      echo "Linux detected"
+      curl -L https://github.com/ggml-org/llama.cpp/releases/download/b6945/llama-b6945-bin-ubuntu-vulkan-x64.zip -o llama.zip && unzip llama.zip
+   else
+      echo "MacOS detected"
+      curl -L https://github.com/ggml-org/llama.cpp/releases/download/b6945/llama-b6945-bin-macos-x64.zip -o llama.zip && unzip llama.zip
+   fi
    echo "Done downloading Llama.cpp!"
 fi
+
+echo "Installing python dependencies"
+pip install -q -r requirements.txt
 
 # Terminal 1: VLM Server (llama-server)
 echo "✓ Opening Terminal 1: VLM Server (llama-server, version b6804)..."
@@ -43,7 +52,7 @@ echo '========================================'
 echo 'VLM SERVER (Port 8080)'
 echo '========================================'
 echo ''
-./build/bin/llama-server -hf ggml-org/Qwen3-VL-2B-Instruct-GGUF --host 0.0.0.0 &
+./build/bin/llama-server -hf Qwen/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M --host 0.0.0.0 &
 sleep 5
 
 echo "=========================================="
