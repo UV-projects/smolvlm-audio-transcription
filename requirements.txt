@@ -1,6 +1,12 @@
 torch
 pyaudio
-numpy<2.0
-websockets
+numpy
+websockets==11.0.3
 PyMuPDF
 Pillow
+vosk
+filterpy
+onnx
+onnxruntime
+opencv-contrib-python
+pynput
