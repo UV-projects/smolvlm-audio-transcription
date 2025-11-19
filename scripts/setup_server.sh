@@ -48,13 +48,22 @@ fi
 echo "Installing python dependencies"
 pip install -q -r requirements.txt
 
-# Terminal 1: VLM Server (llama-server)
-echo "✓ Opening Terminal 1: VLM Server (llama-server, version b6804)..."
+# VLM Server (llama-server)
+echo "VLM Server (llama-server, version b6945)..."
 echo '========================================'
 echo 'VLM SERVER (Port 8080)'
 echo '========================================'
 echo ''
 ./build/bin/llama-server -hf Qwen/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M --host 0.0.0.0 2>/dev/null 1>/dev/null &
+sleep 5
+
+# OCR Server (llama-server)
+echo "OCR Server (llama-server, version b6945)..."
+echo '========================================'
+echo 'OCR SERVER (Port 8081)'
+echo '========================================'
+echo ''
+./build/bin/llama-server -hf unsloth/Nanonets-OCR-s-GGUF:Q4_K_M --host 0.0.0.0 --port 8081 -sm row --jinja -c 50000 -v -n 32768 --no-context-shift 2>/dev/null 1>/dev/null &
 sleep 5
 
 echo "=========================================="
