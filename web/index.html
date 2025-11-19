@@ -218,6 +218,55 @@
             right: 0;
         }
 
+        .leftSidebar {
+            position: fixed;
+            left: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            transition: left 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .leftSidebar.open {
+            left: 0;
+        }
+
+        /* Sidebar Toggle Button */
+        .leftSidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 0 8px 8px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.3);
+            z-index: 999;
+            transition: right 0.3s, transform 0.2s;
+            writing-mode: vertical-rl;
+            font-weight: bold;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .leftSidebar-toggle:hover {
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .leftSidebar-toggle.leftSidebar-open {
+            left: 400px;
+        }
+
         /* PDF Viewer Section */
         .pdf-section {
             background: #1a1a1a;
@@ -469,7 +518,27 @@
         .orchestrator-section {
             display: none;
         }
+
+        .markdown-output {
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .markdown-output h1, .markdown-output h2, .markdown-output h3 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
     </style>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            }
+        };
+    </script>
+    <script src="./marked.min.js"></script>
+    <script src="./tex-mml-chtml.js"></script>
 </head>
 <body>
     <!-- Sidebar Toggle Button -->
@@ -495,6 +564,33 @@
                 <div class="config-group">
                     <label for="vlmInstruction">Instruction for VLM:</label>
                     <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">Describe the pose of the person in 8 words or fewer. Do not add any context to the output.</textarea>
+                </div>
+
+                <div class="config-group">
+                    <label for="captureInterval">Camera Capture Interval:</label>
+                    <select onchange="reloadWithInterval(this.value)" id="captureInterval">
+                        <option value="100">100ms</option>
+                        <option value="250">250ms</option>
+                        <option value="500">500ms</option>
+                        <option value="1000">1 second</option>
+                        <option value="2000">2 seconds</option>
+                        <option value="5000" selected>5 seconds</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- OCR Settings Section -->
+            <div class="settings-section">
+                <div class="settings-section-title">📄 OCR Settings (llama.cpp)</div>
+
+                <div class="config-group">
+                    <label for="ocrServerUrl">llama.cpp Server URL:</label>
+                    <input type="text" id="ocrServerUrl" value="http://10.42.0.108:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
+                </div>
+
+                <div class="config-group">
+                    <label for="ocrInstruction">Instruction for OCR:</label>
+                    <textarea id="ocrInstruction" placeholder="Enter instructions for the OCR">Extract the text from the above document as if you were reading it naturally. Return the tables in html format. Return the equations in LaTeX representation. If there is an image in the document and image caption is not present, add a small description of the image inside the <img></img> tag; otherwise, add the image caption inside <img></img>. Do not add any context to the output, the output must contain only the text you can read at the best of your possibilities.</textarea>
                 </div>
 
                 <div class="config-group">
@@ -583,6 +679,20 @@
                 </div>
             </div>
         </div>
+        <!-- Left Markdown Sidebar -->
+        <div id="leftSidebar" class="leftSidebar">
+            <div class="sidebar-header">
+                <h3>📝 Markdown Notes</h3>
+            </div>
+            <div id="ocrResponse" class="markdown-output">
+        </div>
+
+        <!-- Toggle button for left sidebar <div id="leftSidebarToggle" class="leftSidebarToggle" onclick="toggleLeftSidebar()">📝</div>-->
+
+        <div class="leftSidebar-toggle" id="leftSidebarToggle" onclick="toggleLeftSidebar()">
+            INFO ▶
+        </div>
+
 
         <!-- Sidebar (Transcription and VLM Response) -->
         <div class="sidebar" id="sidebar">
@@ -626,6 +736,27 @@
     </div>
 
     <script>
+    /*
+      function renderMarkdownInOcrResponse() {
+            const ocrElement = document.getElementById('ocrResponse');
+            if (!ocrElement) return;
+
+            // Get the raw markdown text inside ocrResponse, or from a property, depending on your existing setup
+            const rawMarkdown = ocrElement.textContent || ocrElement.innerText || '';
+
+            // Convert markdown to HTML using marked
+            const html = marked.parse(rawMarkdown);
+
+            // Replace content with rendered HTML
+            ocrElement.innerHTML = html;
+        }
+
+        // Call after page load or whenever the content is updated
+        window.addEventListener('load', renderMarkdownInOcrResponse);
+
+        // If content updates dynamically, call renderMarkdownInOcrResponse() after update
+        */
+
         // Auto-connect gesture on page load
         window.addEventListener('DOMContentLoaded', () => {
             console.log('Auto-connecting gesture...');
@@ -756,7 +887,7 @@
         function getIntervalFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             const interval = urlParams.get('interval');
-            return interval ? parseInt(interval) : 500; // default 500ms
+            return interval ? parseInt(interval) : 5000; // default 50000ms
         }
 
         // Sidebar toggle
@@ -775,6 +906,25 @@
                 sidebar.classList.remove('open');
                 sidebarToggle.classList.remove('sidebar-open');
                 sidebarToggle.textContent = 'INFO ▶';
+            }
+        }
+
+        // Sidebar toggle
+        let leftSidebarOpen = false;
+
+        function toggleLeftSidebar() {
+            leftSidebarOpen = !leftSidebarOpen;
+            const leftSidebar = document.getElementById('leftSidebar');
+            const leftSidebarToggle = document.getElementById('leftSidebarToggle');
+
+            if (leftSidebarOpen) {
+                leftSidebar.classList.add('open');
+                leftSidebarToggle.classList.add('leftSidebar-open');
+                leftSidebarToggle.textContent = 'NOTES ◀';
+            } else {
+                leftSidebar.classList.remove('open');
+                leftSidebarToggle.classList.remove('leftSidebar-open');
+                leftSidebarToggle.textContent = 'NOTES ▶';
             }
         }
 
@@ -868,6 +1018,7 @@
         let totalPages = 0;
         let recognition = null;
         let vlmIntervalId = null;
+        let ocrIntervalId = null;
         let videoStream = null;
         let sttWebSocket = null;
         let orchestratorSocket = null;
@@ -1242,7 +1393,7 @@
                     processor.connect(audioContext.destination);
                 } catch (err) {
                     console.error('Microphone access error:', err);
-                    addTranscription('Microphone error: ' + err.message);
+                    //addTranscription('Microphone error: ' + err.message);
                 }
             };
 
@@ -1345,6 +1496,7 @@
                     const vlmResponseText = data.choices?.[0]?.message?.content || 'No response received.';
 
                     document.getElementById('vlmResponse').innerHTML = vlmResponseText;
+                    console.log("VLM", vlmResponseText);
 
                     if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
                         const orchestratorPayload = {
@@ -1361,6 +1513,86 @@
 
             await performQuery();
             vlmIntervalId = setInterval(performQuery, captureIntervalMs);
+
+        }
+
+        // OCR functionality (auto-start)
+        async function startOCR() {
+            const ocrServerUrl = document.getElementById('ocrServerUrl').value;
+            const ocrInstruction = document.getElementById('ocrInstruction').value;
+            const systemPrompta = "";
+            let captureIntervalMs = parseInt(document.getElementById('captureInterval').value);
+
+            const performQuery = async () => {
+                // Check if interval has changed
+                console.log("Workii");
+                /*
+                const newInterval = parseInt(document.getElementById('captureInterval').value);
+
+                if (currentCaptureInterval !== newInterval) {
+                    console.log(`Interval changed from ${currentCaptureInterval}ms to ${newInterval}ms - restarting`);
+                    clearInterval(ocrIntervalId);
+                    captureIntervalMs = newInterval;
+                    currentCaptureInterval = newInterval;
+                    ocrIntervalId = setInterval(performQuery, newInterval);
+                    return;
+                }
+
+                currentCaptureInterval = newInterval;
+                */
+                const imageBase64 = captureVideoFrame();
+
+                if (!imageBase64) {
+                    return;
+                }
+
+                try {
+                    const base64Data = imageBase64.split(',')[1];
+
+                    const response = await fetch(ocrServerUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            //max_tokens: 200,
+                            temperature: 0.9,
+                            messages: [
+                                //{ role: 'system', content: systemPrompta },
+                                { role: 'user', content: [
+                                    { type: 'text', text: ocrInstruction },
+                                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64Data}` } }
+                                ] },
+                            ]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    let ocrResponseText = data.choices?.[0]?.message?.content || 'No response received.';
+
+                    document.getElementById('ocrResponse').innerHTML = marked.parse(ocrResponseText);
+                    if (window.MathJax) {
+                        MathJax.typesetPromise([document.getElementById('ocrResponse')]).catch((err) => console.error(err.message));
+                    }
+                    console.log(ocrResponseText)
+
+                    if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                        const orchestratorPayload = {
+                            source: 'vision-ocr',
+                            content: ocrResponseText
+                        };
+                        orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                    }
+
+                } catch (error) {
+                    console.error('OCR query error:', error);
+                }
+            };
+
+            await performQuery();
+            ocrIntervalId = setInterval(performQuery, captureIntervalMs);
 
         }
 
@@ -1383,10 +1615,11 @@
             setupOrchestratorWebSocket();
             setupGestureSocket();
 
-            // Wait for video to be ready before starting STT and VLM
+            // Wait for video to be ready before starting STT, VLM and OCR
             setTimeout(() => {
                 initializeSpeechRecognition();
-                startVLM();
+                //startVLM();
+                startOCR();
             }, 1000);
         };
 
@@ -1418,6 +1651,9 @@
             }
             if (vlmIntervalId) {
                 clearInterval(vlmIntervalId);
+            }
+            if (ocrIntervalId) {
+                clearInterval(ocrIntervalId);
             }
             if (recognition) {
                 recognition.stop();
