@@ -10,3 +10,5 @@ onnx
 onnxruntime
 opencv-contrib-python
 pynput
+gradio-client==1.13.0
+gradio==5.45.0
