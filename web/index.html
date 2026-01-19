@@ -558,7 +558,7 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://127.0.0.1:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -584,8 +584,8 @@
                 <div class="settings-section-title">📄 OCR Settings (llama.cpp)</div>
 
                 <div class="config-group">
-                    <label for="ocrServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="ocrServerUrl" value="http://10.42.0.108:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
+                    <label for="ocrServerUrl">OCR Server URL:</label>
+                    <input type="text" id="ocrServerUrl" value="http://127.0.0.1:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -612,7 +612,7 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://localhost:2700">
+                    <input type="text" id="sttServerIp" value="ws://127.0.0.1:2700" placeholder="e.g., ws://localhost:2700">
                 </div>
             </div>
 
@@ -622,7 +622,7 @@
 
                 <div class="config-group">
                     <label for="gestureServerUrl">Gesture Server URL:</label>
-                    <input type="text" id="gestureServerUrl" value="ws://10.42.0.108:9003" placeholder="e.g., ws://localhost:9003">
+                    <input type="text" id="gestureServerUrl" value="ws://127.0.0.1:9003" placeholder="e.g., ws://localhost:9003">
                 </div>
             </div>
 
@@ -632,7 +632,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://127.0.0.1:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -1077,7 +1077,7 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
+            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -1297,7 +1297,7 @@
 
         // PDF WebSocket Functions
         function setupPdfSocket() {
-            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
+            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
 
             ws.onopen = () => {
                 console.log('PDF WebSocket connected');
@@ -1525,7 +1525,6 @@
 
             const performQuery = async () => {
                 // Check if interval has changed
-                console.log("Workii");
                 /*
                 const newInterval = parseInt(document.getElementById('captureInterval').value);
 
@@ -1618,7 +1617,7 @@
             // Wait for video to be ready before starting STT, VLM and OCR
             setTimeout(() => {
                 initializeSpeechRecognition();
-                //startVLM();
+                startVLM();
                 startOCR();
             }, 1000);
         };
