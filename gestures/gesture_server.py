@@ -11,7 +11,8 @@ from main_controller import MainController
 from utils import Event
 
 # +++ADD: Configuration for target WebSocket+++
-TARGET_WS_URL = "ws://localhost:9001"  # Change to your target IP:PORT
+global TARGET_WS_URL
+TARGET_WS_URL = "ws://localhost:9001"
 target_websocket = None  # Global variable to hold the target connection
 
 async def connect_to_target():
@@ -124,11 +125,11 @@ async def main():
     print(f"Running server from directory: {os.getcwd()}")
 
     parser = argparse.ArgumentParser(description='Gesture recognition server')
+    TARGET_WS_URL = "ws://localhost:9001"  # Change to your target IP:PORT
     parser.add_argument('--target', type=str, default=TARGET_WS_URL,
                         help='Target WebSocket URL (e.g., ws://127.0.0.1:8080)')
     args = parser.parse_args()
 
-    global TARGET_WS_URL
     TARGET_WS_URL = args.target
     print(f"Target WebSocket configured: {TARGET_WS_URL}")
 
