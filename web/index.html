@@ -543,13 +543,13 @@
 <body>
     <!-- Sidebar Toggle Button -->
     <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
-        INFO ▶
+        INFO >
     </div>
 
     <!-- Settings Popup -->
     <div class="settings-popup" id="settingsPopup">
         <div class="settings-content">
-            <button class="settings-close" onclick="toggleSettings()">×</button>
+            <button class="settings-close" onclick="toggleSettings()">x</button>
             <h2 class="settings-title">Settings</h2>
 
             <!-- VLM Settings Section -->
@@ -558,12 +558,12 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://127.0.0.1:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
                     <label for="vlmInstruction">Instruction for VLM:</label>
-                    <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">Describe the pose of the person in 8 words or fewer. Do not add any context to the output.</textarea>
+                    <textarea id="vlmInstruction" placeholder="Enter instructions for the VLM">Describe the pose of the person in 8 words or fewer. Do not add any context to the output. If you don't find a person, output "No person found!"</textarea>
                 </div>
 
                 <div class="config-group">
@@ -585,12 +585,12 @@
 
                 <div class="config-group">
                     <label for="ocrServerUrl">OCR Server URL:</label>
-                    <input type="text" id="ocrServerUrl" value="http://127.0.0.1:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
+                    <input type="text" id="ocrServerUrl" value="http://10.42.0.108:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
                     <label for="ocrInstruction">Instruction for OCR:</label>
-                    <textarea id="ocrInstruction" placeholder="Enter instructions for the OCR">Extract the text from the above document as if you were reading it naturally. Return the tables in html format. Return the equations in LaTeX representation. If there is an image in the document and image caption is not present, add a small description of the image inside the <img></img> tag; otherwise, add the image caption inside <img></img>. Do not add any context to the output, the output must contain only the text you can read at the best of your possibilities.</textarea>
+                    <textarea id="ocrInstruction" placeholder="Enter instructions for the OCR">Extract the text from the image as if you were reading it naturally. Return the tables in html format. Return the equations in Markdown representation. Do not add any context to the output, the output must contain only the text you can read at the best of your possibilities.</textarea>
                 </div>
 
                 <div class="config-group">
@@ -612,7 +612,7 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://127.0.0.1:2700" placeholder="e.g., ws://localhost:2700">
+                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://localhost:2700">
                 </div>
             </div>
 
@@ -622,7 +622,7 @@
 
                 <div class="config-group">
                     <label for="gestureServerUrl">Gesture Server URL:</label>
-                    <input type="text" id="gestureServerUrl" value="ws://127.0.0.1:9003" placeholder="e.g., ws://localhost:9003">
+                    <input type="text" id="gestureServerUrl" value="ws://10.42.0.108:9003" placeholder="e.g., ws://localhost:9003">
                 </div>
             </div>
 
@@ -632,7 +632,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://127.0.0.1:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -673,9 +673,9 @@
                 </div>
 
                 <div class="pdf-controls">
-                    <button id="prevBtn" onclick="previousSlide()" disabled>◄ Previous</button>
+                    <button id="prevBtn" onclick="previousSlide()" disabled>Previous</button>
                     <span class="page-info" id="pageInfo">Page 0 / 0</span>
-                    <button id="nextBtn" onclick="nextSlide()" disabled>Next ►</button>
+                    <button id="nextBtn" onclick="nextSlide()" disabled>Next ></button>
                 </div>
             </div>
         </div>
@@ -690,7 +690,7 @@
         <!-- Toggle button for left sidebar <div id="leftSidebarToggle" class="leftSidebarToggle" onclick="toggleLeftSidebar()">📝</div>-->
 
         <div class="leftSidebar-toggle" id="leftSidebarToggle" onclick="toggleLeftSidebar()">
-            INFO ▶
+            NOTES >
         </div>
 
 
@@ -736,27 +736,6 @@
     </div>
 
     <script>
-    /*
-      function renderMarkdownInOcrResponse() {
-            const ocrElement = document.getElementById('ocrResponse');
-            if (!ocrElement) return;
-
-            // Get the raw markdown text inside ocrResponse, or from a property, depending on your existing setup
-            const rawMarkdown = ocrElement.textContent || ocrElement.innerText || '';
-
-            // Convert markdown to HTML using marked
-            const html = marked.parse(rawMarkdown);
-
-            // Replace content with rendered HTML
-            ocrElement.innerHTML = html;
-        }
-
-        // Call after page load or whenever the content is updated
-        window.addEventListener('load', renderMarkdownInOcrResponse);
-
-        // If content updates dynamically, call renderMarkdownInOcrResponse() after update
-        */
-
         // Auto-connect gesture on page load
         window.addEventListener('DOMContentLoaded', () => {
             console.log('Auto-connecting gesture...');
@@ -788,7 +767,8 @@
                 }
 
                 // Create hidden video element
-                const videoElement = document.createElement('video');
+                //document.getElementById('videoElement').srcObject
+                const videoElement = document.getElementById('videoElement');
                 videoElement.srcObject = gestureVideoStream;
                 videoElement.play();
 
@@ -901,11 +881,11 @@
             if (sidebarOpen) {
                 sidebar.classList.add('open');
                 sidebarToggle.classList.add('sidebar-open');
-                sidebarToggle.textContent = 'INFO ◀';
+                sidebarToggle.textContent = 'INFO <';
             } else {
                 sidebar.classList.remove('open');
                 sidebarToggle.classList.remove('sidebar-open');
-                sidebarToggle.textContent = 'INFO ▶';
+                sidebarToggle.textContent = 'INFO >';
             }
         }
 
@@ -920,11 +900,11 @@
             if (leftSidebarOpen) {
                 leftSidebar.classList.add('open');
                 leftSidebarToggle.classList.add('leftSidebar-open');
-                leftSidebarToggle.textContent = 'NOTES ◀';
+                leftSidebarToggle.textContent = 'NOTES <';
             } else {
                 leftSidebar.classList.remove('open');
                 leftSidebarToggle.classList.remove('leftSidebar-open');
-                leftSidebarToggle.textContent = 'NOTES ▶';
+                leftSidebarToggle.textContent = 'NOTES >';
             }
         }
 
@@ -1077,7 +1057,7 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
+            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -1173,9 +1153,10 @@
             };
 
             orchestratorSocket.onclose = () => {
-                console.log('Orchestrator disconnected');
+                console.log('Orchestrator disconnected, trying to reconnect');
                 document.getElementById('orchestratorStatus').textContent = '🎯 Orchestrator: Disconnected';
                 document.getElementById('orchestratorStatus').className = 'orchestrator-minimal status-inactive';
+                setTimeout(setupOrchestratorWebSocket(), 3000);
             };
 
             orchestratorSocket.onerror = (error) => {
@@ -1220,6 +1201,96 @@
                 gestureConnectionStatus.className = 'disconnected';
                 gestureSocket.close();
             };
+        }
+
+        // STT WebSocket Functions
+        function setupSttSocket(sttServerIp) {
+            console.log("Trying reconnecting", sttServerIp);
+            sttWebSocket = new WebSocket(sttServerIp);
+            sttWebSocket.binaryType = 'arraybuffer';
+
+            sttWebSocket.onopen = async () => {
+                console.log('STT WebSocket connected');
+
+                try {
+                    const audioStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            channelCount: 1,
+                            sampleRate: 16000,
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        }
+                    });
+
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    const microphone = audioContext.createMediaStreamSource(audioStream);
+                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+                    processor.onaudioprocess = (e) => {
+                        if (sttWebSocket && sttWebSocket.readyState === WebSocket.OPEN) {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const int16Data = new Int16Array(inputData.length);
+
+                            for (let i = 0; i < inputData.length; i++) {
+                                const s = Math.max(-1, Math.min(1, inputData[i]));
+                                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            }
+
+                            sttWebSocket.send(int16Data.buffer);
+                        }
+                    };
+
+                    microphone.connect(processor);
+                    processor.connect(audioContext.destination);
+                } catch (err) {
+                    console.error('Microphone access error:', err);
+                }
+            };
+
+            sttWebSocket.onmessage = (event) => {
+                try {
+                    const text = event.data;
+                    if (text !== undefined && text !== '') {
+                        addTranscription(text);
+
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            const orchestratorPayload = {
+                                source: 'audio_stt',
+                                content: text
+                            };
+                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error parsing STT message:', err);
+                }
+            };
+
+            sttWebSocket.onclose = () => {
+                console.log('STT WebSocket disconnected, reconnecting...');
+                setTimeout(() => initializeSpeechRecognition(), 3000);
+            };
+
+            sttWebSocket.onerror = (error) => {
+                console.error('STT WebSocket error:', error);
+            };
+        }
+
+        function addTranscription(text) {
+            const transcriptionBox = document.getElementById('transcriptionBox');
+
+            if (transcriptionBox.querySelector('em')) {
+                transcriptionBox.innerHTML = '';
+            }
+
+            if (transcriptionBox.textContent.length > 0) {
+                transcriptionBox.textContent += ' ' + text;
+            } else {
+                transcriptionBox.textContent = text;
+            }
+
+            transcriptionBox.scrollTop = transcriptionBox.scrollHeight;
         }
 
         // Capture frame from video feed
@@ -1281,23 +1352,18 @@
                     console.error('Speech recognition error:', event.error);
                 };
 
-                /*recognition.onend = () => {
-                    console.log('Speech recognition ended, restarting...');
-                    setTimeout(() => recognition.start(), 100);
-                };*/
-
                 // Auto-start
                 recognition.start();
             } else {
                 console.log('Using WebSocket-based STT');
                 const sttServerIp = document.getElementById('sttServerIp').value;
-                connectSTTWebSocket(sttServerIp);
+                setupSttSocket(sttServerIp);
             }
         }
 
         // PDF WebSocket Functions
         function setupPdfSocket() {
-            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
+            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
 
             ws.onopen = () => {
                 console.log('PDF WebSocket connected');
@@ -1350,96 +1416,6 @@
             ws.onerror = (error) => {
                 console.error('PDF WebSocket error:', error);
             };
-        }
-
-        // STT WebSocket Functions
-        function setupSttSocket() {
-            sttWebSocket = new WebSocket(sttServerIp);
-            sttWebSocket.binaryType = 'arraybuffer';
-
-            sttWebSocket.onopen = async () => {
-                console.log('STT WebSocket connected');
-
-                try {
-                    const audioStream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            channelCount: 1,
-                            sampleRate: 16000,
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        }
-                    });
-
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                    const microphone = audioContext.createMediaStreamSource(audioStream);
-                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-                    processor.onaudioprocess = (e) => {
-                        if (sttWebSocket && sttWebSocket.readyState === WebSocket.OPEN) {
-                            const inputData = e.inputBuffer.getChannelData(0);
-                            const int16Data = new Int16Array(inputData.length);
-
-                            for (let i = 0; i < inputData.length; i++) {
-                                const s = Math.max(-1, Math.min(1, inputData[i]));
-                                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                            }
-
-                            sttWebSocket.send(int16Data.buffer);
-                        }
-                    };
-
-                    microphone.connect(processor);
-                    processor.connect(audioContext.destination);
-                } catch (err) {
-                    console.error('Microphone access error:', err);
-                    //addTranscription('Microphone error: ' + err.message);
-                }
-            };
-
-            sttWebSocket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.text !== undefined && data.text !== '') {
-                        addTranscription(data.text);
-
-                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
-                            const orchestratorPayload = {
-                                source: 'audio_stt',
-                                content: data.text
-                            };
-                            orchestratorSocket.send(JSON.stringify(orchestratorPayload));
-                        }
-                    }
-                } catch (err) {
-                    console.error('Error parsing STT message:', err);
-                }
-            };
-
-            /*sttWebSocket.onclose = () => {
-                console.log('STT WebSocket disconnected, reconnecting...');
-                setTimeout(() => connectSTTWebSocket(serverUrl), 3000);
-            };*/
-
-            sttWebSocket.onerror = (error) => {
-                console.error('STT WebSocket error:', error);
-            };
-        }
-
-        function addTranscription(text) {
-            const transcriptionBox = document.getElementById('transcriptionBox');
-
-            if (transcriptionBox.querySelector('em')) {
-                transcriptionBox.innerHTML = '';
-            }
-
-            if (transcriptionBox.textContent.length > 0) {
-                transcriptionBox.textContent += ' ' + text;
-            } else {
-                transcriptionBox.textContent = text;
-            }
-
-            transcriptionBox.scrollTop = transcriptionBox.scrollHeight;
         }
 
         // VLM functionality (auto-start)
@@ -1610,7 +1586,7 @@
             const interval = getIntervalFromURL();
             document.getElementById('captureInterval').value = interval;
             connectWebSocket();
-            initializeVideoFeed();
+            //initializeVideoFeed();
             setupOrchestratorWebSocket();
             setupGestureSocket();
 
