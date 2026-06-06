@@ -42,16 +42,16 @@ VLM_CTX = CFG.get("vlm_context", 4096)
 NGL = CFG.get("gpu_layers", 99)
 MODELS = {m["id"]: m for m in CFG["models"]}
 
-VOSK_CANDIDATES = [
-    os.path.join(ROOT, "models", "vosk-model-small-en-us-0.15"),
-    os.path.join(ROOT, "models", "vosk-model-en-us-0.42-gigaspeech"),
-]
+STT_MODELS = CFG.get("stt_models", [])
+STT_MODELS_BY_ID = {m["id"]: m for m in STT_MODELS}
+DEFAULT_STT_MODEL = CFG.get("default_stt_model", STT_MODELS[0]["id"] if STT_MODELS else "vosk-small-en-us")
 
 # ----------------------------------------------------------------------------- state
 S = {
     "vlm": None,          # Popen
     "stt": None,          # Popen
     "active_model": CFG.get("default_model", CFG["models"][0]["id"]),
+    "stt_model": DEFAULT_STT_MODEL,
     "starting": False,
 }
 LOCK = threading.RLock()
@@ -82,11 +82,20 @@ def models_payload():
     return out
 
 
-def vosk_model_dir():
-    for p in VOSK_CANDIDATES:
-        if os.path.isdir(p):
-            return p
-    return None
+def stt_model_dir(mid):
+    m = STT_MODELS_BY_ID.get(mid)
+    if not m:
+        return None
+    p = os.path.join(ROOT, m["path"])
+    return p if os.path.isdir(p) else None
+
+
+def stt_models_payload():
+    out = []
+    for m in STT_MODELS:
+        ready = os.path.isdir(os.path.join(ROOT, m["path"]))
+        out.append({"id": m["id"], "name": m["name"], "note": m.get("note", ""), "ready": ready})
+    return out
 
 
 def port_open(port):
@@ -154,16 +163,18 @@ def start_vlm(mid):
     S["active_model"] = mid
 
 
-def start_stt():
+def start_stt(mid=None):
     if alive(S["stt"]):
         return
-    vd = vosk_model_dir()
+    mid = mid or S["stt_model"]
+    vd = stt_model_dir(mid)
     if not vd:
-        raise RuntimeError("No Vosk model found in models/. Run download_models.sh.")
+        raise RuntimeError("STT model not found: %s. Download it or choose another model." % mid)
     env = dict(os.environ, VOSK_SERVER_PORT=str(STT_PORT), VOSK_SAMPLE_RATE="16000")
     logf = open(os.path.join(LOG_DIR, "stt.log"), "w")
     S["stt"] = subprocess.Popen([sys.executable, AUDIO_PY, vd], cwd=ROOT, env=env,
                                 stdout=logf, stderr=subprocess.STDOUT, start_new_session=True)
+    S["stt_model"] = mid
 
 
 def start_all(mid):
@@ -190,9 +201,11 @@ def status():
         "vlm": {"running": vlm_run, "ready": ready, "model_name": m.get("name", S["active_model"]),
                 "port": VLM_PORT},
         "stt": {"running": alive(S["stt"]) and port_open(STT_PORT), "port": STT_PORT,
-                "model": os.path.basename(vosk_model_dir() or "none")},
+                "model": os.path.basename(stt_model_dir(S["stt_model"]) or "none"),
+                "model_id": S["stt_model"]},
         "active_model": S["active_model"],
         "models": models_payload(),
+        "stt_models": stt_models_payload(),
         "mem_mb": proc_rss_mb(S["vlm"], S["stt"]),
         "starting": S["starting"],
     }
@@ -250,6 +263,14 @@ class Handler(BaseHTTPRequestHandler):
                 if mid not in MODELS:
                     return self._send(400, {"error": "unknown model"})
                 threading.Thread(target=start_vlm, args=(mid,), daemon=True).start()
+                return self._send(200, {"ok": True, "model": mid})
+            if path == "/api/stt_model":
+                mid = (json.loads(self._body() or b"{}")).get("model")
+                if mid not in STT_MODELS_BY_ID:
+                    return self._send(400, {"error": "unknown stt model"})
+                S["stt_model"] = mid
+                stop_all()
+                threading.Thread(target=start_all, args=(S["active_model"],), daemon=True).start()
                 return self._send(200, {"ok": True, "model": mid})
             return self._send(404, {"error": "not found"})
         except BrokenPipeError:

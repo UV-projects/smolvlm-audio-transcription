@@ -95,6 +95,10 @@
         <select id="modelSelect"><option>Loading…</option></select>
       </div>
       <div class="ctl">
+        <label for="sttSelect">Speech model</label>
+        <select id="sttSelect"><option>Loading…</option></select>
+      </div>
+      <div class="ctl">
         <label for="intervalSelect">Analysis interval</label>
         <select id="intervalSelect">
           <option value="400">400 ms</option>
@@ -196,6 +200,18 @@ function renderModels(st){
   }
   sel.value = cur && st.models.some(m=>m.id===cur) ? cur : (st.active_model||st.models[0].id);
 }
+function renderSttModels(st){
+  const sel=$('sttSelect');
+  if(!st || !st.stt_models){sel.innerHTML='<option>Backend offline</option>'; return;}
+  const cur=sel.value;
+  sel.innerHTML='';
+  for(const m of st.stt_models){
+    const o=document.createElement('option');
+    o.value=m.id; o.textContent=m.name+(m.note?'  ·  '+m.note:'')+(m.ready?'':'  (download needed)');
+    sel.appendChild(o);
+  }
+  sel.value = cur && st.stt_models.some(m=>m.id===cur) ? cur : (st.stt&&st.stt.model_id?st.stt.model_id:st.stt_models[0].id);
+}
 function renderStatus(st){
   if(!st){setBackend('off','Backend offline'); return;}
   if(st.vlm && st.vlm.running){
@@ -205,7 +221,7 @@ function renderStatus(st){
     setBackend('off','Backend stopped');
   }
 }
-async function refresh(){const st=await getStatus(); renderModels(st); renderStatus(st); return st;}
+async function refresh(){const st=await getStatus(); renderModels(st); renderSttModels(st); renderStatus(st); return st;}
 
 /* ---------- Source switching ---------- */
 $('sourceSeg').addEventListener('click', e=>{
@@ -378,10 +394,21 @@ async function changeModel(){
   }catch(e){toast('Model switch failed.');}
 }
 
+async function changeSttModel(){
+  const model=$('sttSelect').value;
+  if(!running){return;}
+  setBackend('busy','Switching speech model…');
+  try{
+    await fetch('/api/stt_model',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});
+    await waitBackendReady();
+    toast('Speech model switched to '+model);
+  }catch(e){toast('Speech model switch failed.');}
+}
 $('startBtn').onclick=startSystem;
 $('stopBtn').onclick=()=>stopSystem();
 $('restartBtn').onclick=restartSystem;
 $('modelSelect').onchange=changeModel;
+$('sttSelect').onchange=changeSttModel;
 $('intervalSelect').onchange=()=>{ if(running){clearInterval(frameTimer); frameTimer=setInterval(askVlm, parseInt($('intervalSelect').value)||1000);} };
 window.addEventListener('beforeunload',()=>{ if(mediaStream)mediaStream.getTracks().forEach(t=>t.stop()); });
 
