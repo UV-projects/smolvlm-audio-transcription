@@ -118,17 +118,17 @@ async def gesture_server(websocket, path):
                             break  # Process only one gesture per frame loop
 
 async def main():
+    global TARGET_WS_URL
     # Ensure the current working directory is the project root
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     os.chdir(project_root)
     print(f"Running server from directory: {os.getcwd()}")
 
     parser = argparse.ArgumentParser(description='Gesture recognition server')
-    parser.add_argument('--target', type=str, default=TARGET_WS_URL,
+    parser.add_argument('--target', type=str, default="ws://localhost:9001",
                         help='Target WebSocket URL (e.g., ws://127.0.0.1:8080)')
     args = parser.parse_args()
 
-    global TARGET_WS_URL
     TARGET_WS_URL = args.target
     print(f"Target WebSocket configured: {TARGET_WS_URL}")
 

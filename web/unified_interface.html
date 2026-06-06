@@ -125,6 +125,23 @@
             cursor: not-allowed;
         }
 
+        .upload-button {
+            background-color: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            margin-right: 8px;
+        }
+
+        .upload-button:hover {
+            background-color: #5568d3;
+        }
+
         #slideInfo {
             color: white;
             font-size: 16px;
@@ -301,7 +318,12 @@
 
             <!-- RIGHT: Video Feed & Controls -->
             <div class="control-section">
-                <div class="section-title">🎥 Live Camera Feed</div>
+                <div class="section-title">🎥 Video Feed</div>
+                <div style="margin-bottom: 12px;">
+                    <input type="file" id="videoFileInput" accept="video/*" onchange="handleVideoUpload(event)" style="display: none;">
+                    <button class="upload-button" onclick="document.getElementById('videoFileInput').click()">🎬 Upload Video</button>
+                    <span id="videoStatusText" style="font-size: 13px; color: #444;">No video selected</span>
+                </div>
                 <video id="videoFeed" autoplay playsinline></video>
                 <canvas id="canvas" class="hidden"></canvas>
 
@@ -493,13 +515,21 @@
         const systemStatusText = document.getElementById('systemStatusText');
         const gestureStatus = document.getElementById('gestureStatus');
         const gestureStatusText = document.getElementById('gestureStatusText');
+        const videoStatusText = document.getElementById('videoStatusText');
 
         let sttSocket;
         let orchestratorSocket;
         let gestureSocket;
-        let stream;
         let intervalId;
+        let gestureFrameIntervalId;
         let isProcessing = false;
+        let videoReady = false;
+        let uploadedVideoObjectUrl = null;
+        let sttAudioStream = null;
+        let sttAudioContext = null;
+        let sttAudioSource = null;
+        let sttAudioProcessor = null;
+        let sttSilenceGain = null;
 
         // VLM Functions
         async function sendChatCompletionRequest(instruction, imageBase64URL) {
@@ -528,8 +558,7 @@
         }
 
         function captureImage() {
-            if (!stream || !video.videoWidth) {
-                console.warn("Video stream not ready for capture.");
+            if (!videoReady || !video.videoWidth || video.paused || video.ended) {
                 return null;
             }
             canvas.width = video.videoWidth;
@@ -537,6 +566,37 @@
             const context = canvas.getContext('2d');
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        async function handleVideoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('video/')) {
+                alert('Please select a valid video file.');
+                return;
+            }
+
+            if (uploadedVideoObjectUrl) {
+                URL.revokeObjectURL(uploadedVideoObjectUrl);
+                uploadedVideoObjectUrl = null;
+            }
+
+            uploadedVideoObjectUrl = URL.createObjectURL(file);
+            video.srcObject = null;
+            video.src = uploadedVideoObjectUrl;
+            video.currentTime = 0;
+
+            try {
+                await video.play();
+                videoReady = true;
+                videoStatusText.textContent = `Loaded: ${file.name}`;
+                responseText.value = 'Video ready. Click Start System to begin.';
+            } catch (err) {
+                console.warn('Video play pending user interaction:', err);
+                videoReady = true;
+                videoStatusText.textContent = `Loaded: ${file.name} (press play if needed)`;
+            }
         }
 
         async function sendData() {
@@ -572,16 +632,83 @@
         function setupSttWebSocket() {
             if (sttSocket) sttSocket.close();
 
-            sttSocket = new WebSocket('ws://localhost:8765');
+            sttSocket = new WebSocket('ws://localhost:2700');
+            sttSocket.binaryType = 'arraybuffer';
 
-            sttSocket.onopen = function() {
+            sttSocket.onopen = async function() {
                 console.log("STT connected");
-                sttResponseText.value = "[Connected to audio server]\n";
+                sttResponseText.value = "[Connected to audio server, using video audio]\n";
+
+                try {
+                    if (video.paused) {
+                        await video.play();
+                    }
+
+                    const captureFn = video.captureStream || video.webkitCaptureStream || video.mozCaptureStream;
+                    if (!captureFn) {
+                        throw new Error('Video audio capture is not supported by this browser.');
+                    }
+
+                    sttAudioStream = captureFn.call(video);
+                    if (!sttAudioStream || sttAudioStream.getAudioTracks().length === 0) {
+                        throw new Error('Selected video has no audio track.');
+                    }
+
+                    sttAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    sttAudioSource = sttAudioContext.createMediaStreamSource(sttAudioStream);
+                    sttAudioProcessor = sttAudioContext.createScriptProcessor(4096, 2, 1);
+                    sttSilenceGain = sttAudioContext.createGain();
+                    sttSilenceGain.gain.value = 0;
+
+                    sttAudioProcessor.onaudioprocess = (e) => {
+                        if (!sttSocket || sttSocket.readyState !== WebSocket.OPEN) return;
+
+                        const numChannels = e.inputBuffer.numberOfChannels;
+                        if (numChannels === 0) return;
+
+                        const left = e.inputBuffer.getChannelData(0);
+                        const right = numChannels > 1 ? e.inputBuffer.getChannelData(1) : left;
+                        const int16Data = new Int16Array(left.length);
+
+                        for (let i = 0; i < left.length; i++) {
+                            const mono = numChannels > 1 ? (left[i] + right[i]) * 0.5 : left[i];
+                            const s = Math.max(-1, Math.min(1, mono));
+                            int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+
+                        sttSocket.send(int16Data.buffer);
+                    };
+
+                    sttAudioSource.connect(sttAudioProcessor);
+                    sttAudioProcessor.connect(sttSilenceGain);
+                    sttSilenceGain.connect(sttAudioContext.destination);
+                } catch (err) {
+                    console.error('Video audio capture error:', err);
+                    sttResponseText.value += '\n[Video audio error: ' + err.message + ']';
+                }
             };
 
             sttSocket.onmessage = function(event) {
-                sttResponseText.value += event.data;
-                sttResponseText.scrollTop = sttResponseText.scrollHeight;
+                try {
+                    const parsed = JSON.parse(event.data);
+                    const text = (parsed && parsed.text) ? parsed.text : '';
+                    if (text) {
+                        sttResponseText.value += text + '\n';
+                        sttResponseText.scrollTop = sttResponseText.scrollHeight;
+
+                        if (orchestratorSocket && orchestratorSocket.readyState === WebSocket.OPEN) {
+                            orchestratorSocket.send(JSON.stringify({
+                                source: 'audio_stt',
+                                content: text
+                            }));
+                        }
+                    }
+                } catch (_err) {
+                    if (event.data) {
+                        sttResponseText.value += event.data + '\n';
+                        sttResponseText.scrollTop = sttResponseText.scrollHeight;
+                    }
+                }
             };
 
             sttSocket.onclose = function() {
@@ -589,12 +716,34 @@
                 if (isProcessing) {
                     sttResponseText.value += "\n[Disconnected from audio server]";
                 }
+                stopSttAudioPipeline();
             };
 
             sttSocket.onerror = function(error) {
                 console.error("STT error:", error);
                 sttResponseText.value = "[Error: Audio server not running]";
             };
+        }
+
+        function stopSttAudioPipeline() {
+            if (sttAudioProcessor) {
+                sttAudioProcessor.disconnect();
+                sttAudioProcessor.onaudioprocess = null;
+                sttAudioProcessor = null;
+            }
+            if (sttAudioSource) {
+                sttAudioSource.disconnect();
+                sttAudioSource = null;
+            }
+            if (sttSilenceGain) {
+                sttSilenceGain.disconnect();
+                sttSilenceGain = null;
+            }
+            if (sttAudioContext) {
+                sttAudioContext.close();
+                sttAudioContext = null;
+            }
+            sttAudioStream = null;
         }
 
         // Orchestrator WebSocket
@@ -627,6 +776,23 @@
                 gestureStatus.classList.remove('inactive');
                 gestureStatus.classList.add('active');
                 gestureStatusText.textContent = "Gesture Control Active";
+
+                if (gestureFrameIntervalId) {
+                    clearInterval(gestureFrameIntervalId);
+                }
+
+                gestureFrameIntervalId = setInterval(() => {
+                    if (!isProcessing) return;
+                    if (!gestureSocket || gestureSocket.readyState !== WebSocket.OPEN) return;
+
+                    const frameData = captureImage();
+                    if (!frameData) return;
+
+                    gestureSocket.send(JSON.stringify({
+                        type: 'frame',
+                        image: frameData.split(',')[1]
+                    }));
+                }, 100);
             };
 
             gestureSocket.onmessage = function(event) {
@@ -650,6 +816,10 @@
                 gestureStatus.classList.remove('active');
                 gestureStatus.classList.add('inactive');
                 gestureStatusText.textContent = "Gesture Control";
+                if (gestureFrameIntervalId) {
+                    clearInterval(gestureFrameIntervalId);
+                    gestureFrameIntervalId = null;
+                }
                 // Optional: try to reconnect
                 setTimeout(setupGestureWebSocket, 5000);
             };
@@ -659,27 +829,22 @@
                 gestureStatus.classList.remove('active');
                 gestureStatus.classList.add('inactive');
                 gestureStatusText.textContent = "Gesture Error";
+                if (gestureFrameIntervalId) {
+                    clearInterval(gestureFrameIntervalId);
+                    gestureFrameIntervalId = null;
+                }
             };
-        }
-
-        // Camera initialization
-        async function initCamera() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                video.srcObject = stream;
-                responseText.value = "Camera ready. Click 'Start System' to begin.";
-            } catch (err) {
-                console.error("Error accessing camera:", err);
-                responseText.value = `Camera error: ${err.name}`;
-                alert("Camera access denied. Please grant permission.");
-            }
         }
 
         // Start/Stop handlers
         function handleStart() {
-            if (!stream) {
-                alert("Camera not available. Please grant permission first.");
+            if (!videoReady) {
+                alert("Upload a video first.");
                 return;
+            }
+
+            if (video.paused) {
+                video.play().catch(() => {});
             }
 
             isProcessing = true;
@@ -699,8 +864,8 @@
             sendData();
             intervalId = setInterval(sendData, intervalMs);
 
-            setupSttWebSocket();
             setupOrchestratorWebSocket();
+            setupSttWebSocket();
         }
 
         function handleStop() {
@@ -713,6 +878,12 @@
             if (sttSocket) sttSocket.close();
             if (orchestratorSocket) orchestratorSocket.close();
             if (gestureSocket) gestureSocket.close();
+            stopSttAudioPipeline();
+
+            if (gestureFrameIntervalId) {
+                clearInterval(gestureFrameIntervalId);
+                gestureFrameIntervalId = null;
+            }
 
             startButton.textContent = "▶ Start System";
             startButton.classList.remove('stop');
@@ -751,20 +922,19 @@
 
         // Initialize on page load
         window.addEventListener('DOMContentLoaded', () => {
-            initCamera();
             connectToPdfServer();
             setupGestureWebSocket();
         });
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
+            stopSttAudioPipeline();
             if (sttSocket) sttSocket.close();
             if (orchestratorSocket) orchestratorSocket.close();
             if (pdfSocket) pdfSocket.close();
             if (gestureSocket) gestureSocket.close();
+            if (gestureFrameIntervalId) clearInterval(gestureFrameIntervalId);
+            if (uploadedVideoObjectUrl) URL.revokeObjectURL(uploadedVideoObjectUrl);
         });
     </script>
 </body>

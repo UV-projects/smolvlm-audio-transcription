@@ -1,0 +1,44 @@
+{
+  "_comment": "AI Director demo config. Model files are resolved from the llama.cpp cache (~/Library/Caches/llama.cpp). Models with a 'hf' field are downloaded on first use via llama-server -hf. Edit 'default_model' to change the startup model.",
+  "control_port": 8000,
+  "vlm_port": 8080,
+  "stt_port": 2700,
+  "default_model": "qwen3-vl-2b",
+  "vlm_context": 4096,
+  "gpu_layers": 99,
+  "models": [
+    {
+      "id": "smolvlm-500m",
+      "name": "SmolVLM 500M",
+      "note": "Lightest, fastest, ~1 GB",
+      "model": "ggml-org_SmolVLM-500M-Instruct-GGUF_SmolVLM-500M-Instruct-Q8_0.gguf",
+      "mmproj": "ggml-org_SmolVLM-500M-Instruct-GGUF_mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+    },
+    {
+      "id": "qwen3-vl-2b",
+      "name": "Qwen3-VL 2B (Q4)",
+      "note": "Paper default, ~2 GB",
+      "model": "Qwen_Qwen3-VL-2B-Instruct-GGUF_Qwen3VL-2B-Instruct-Q4_K_M.gguf",
+      "mmproj": "Qwen_Qwen3-VL-2B-Instruct-GGUF_mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf"
+    },
+    {
+      "id": "qwen3-vl-2b-q8",
+      "name": "Qwen3-VL 2B (Q8)",
+      "note": "Higher quality, ~3 GB",
+      "model": "ggml-org_Qwen3-VL-2B-Instruct-GGUF_Qwen3-VL-2B-Instruct-Q8_0.gguf",
+      "mmproj": "ggml-org_Qwen3-VL-2B-Instruct-GGUF_mmproj-Qwen3-VL-2B-Instruct-Q8_0.gguf"
+    },
+    {
+      "id": "smolvlm-2.2b",
+      "name": "SmolVLM 2.2B",
+      "note": "More detail, ~3 GB, download",
+      "hf": "ggml-org/SmolVLM-Instruct-GGUF"
+    },
+    {
+      "id": "qwen3-vl-4b",
+      "name": "Qwen3-VL 4B",
+      "note": "Most capable, ~4-5 GB, download",
+      "hf": "ggml-org/Qwen3-VL-4B-Instruct-GGUF"
+    }
+  ]
+}

@@ -558,7 +558,7 @@
 
                 <div class="config-group">
                     <label for="vlmServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="vlmServerUrl" value="http://10.42.0.108:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
+                    <input type="text" id="vlmServerUrl" value="http://127.0.0.1:8080/v1/chat/completions" placeholder="e.g., http://localhost:8080/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -585,7 +585,7 @@
 
                 <div class="config-group">
                     <label for="ocrServerUrl">llama.cpp Server URL:</label>
-                    <input type="text" id="ocrServerUrl" value="http://10.42.0.108:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
+                    <input type="text" id="ocrServerUrl" value="http://127.0.0.1:8081/v1/chat/completions" placeholder="e.g., http://localhost:8081/v1/chat/completions">
                 </div>
 
                 <div class="config-group">
@@ -612,7 +612,7 @@
 
                 <div class="config-group">
                     <label for="sttServerIp">Speech-to-Text Server IP:</label>
-                    <input type="text" id="sttServerIp" value="ws://10.42.0.108:2700" placeholder="e.g., ws://localhost:2700">
+                    <input type="text" id="sttServerIp" value="ws://127.0.0.1:2700" placeholder="e.g., ws://localhost:2700">
                 </div>
             </div>
 
@@ -622,7 +622,7 @@
 
                 <div class="config-group">
                     <label for="gestureServerUrl">Gesture Server URL:</label>
-                    <input type="text" id="gestureServerUrl" value="ws://10.42.0.108:9003" placeholder="e.g., ws://localhost:9003">
+                    <input type="text" id="gestureServerUrl" value="ws://127.0.0.1:9003" placeholder="e.g., ws://localhost:9003">
                 </div>
             </div>
 
@@ -632,7 +632,7 @@
 
                 <div class="config-group">
                     <label for="orchestratorUrl">Orchestrator WebSocket URL:</label>
-                    <input type="text" id="orchestratorUrl" value="ws://10.42.0.108:9001" placeholder="e.g., ws://localhost:9001">
+                    <input type="text" id="orchestratorUrl" value="ws://127.0.0.1:9001" placeholder="e.g., ws://localhost:9001">
                 </div>
             </div>
         </div>
@@ -662,9 +662,16 @@
                     <button class="upload-button" onclick="document.getElementById('pdfFileInput').click()">
                         📤 Upload PDF
                     </button>
+                    <input type="file" id="videoFileInput" accept="video/*" onchange="handleVideoUpload(event)">
+                    <button class="upload-button" onclick="document.getElementById('videoFileInput').click()">
+                        🎬 Upload Video
+                    </button>
                     <button class="fullscreen-button" onclick="toggleFullscreen()">
                         🖵 Fullscreen
                     </button>
+                    <div id="videoSourceStatus" class="page-info" style="margin-top: 8px;">
+                        Video source: none selected
+                    </div>
                 </div>
 
                 <div id="slideContainer">
@@ -728,7 +735,7 @@
 
         <!-- Video Container (Draggable) -->
         <div class="video-container" id="videoContainer">
-            <video id="videoElement" autoplay muted></video>
+            <video id="videoElement" autoplay muted loop controls playsinline></video>
         </div>
 
         <!-- Hidden canvas for capturing frames -->
@@ -757,122 +764,42 @@
         // If content updates dynamically, call renderMarkdownInOcrResponse() after update
         */
 
-        // Auto-connect gesture on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('Auto-connecting gesture...');
-            connectGesture();
-        });
-        let gestureVideoStream = null;
-        let gestureCanvas = null;
-        let gestureContext = null;
-        let gestureCaptureInterval = null;
+        let processingStarted = false;
 
-        async function connectGesture() {
-            const gestureUrl = document.getElementById('gestureServerUrl').value;
+        async function handleVideoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('video/')) {
+                alert('Please select a valid video file.');
+                return;
+            }
+
+            const videoElement = document.getElementById('videoElement');
+            const sourceStatus = document.getElementById('videoSourceStatus');
+
+            if (videoObjectUrl) {
+                URL.revokeObjectURL(videoObjectUrl);
+                videoObjectUrl = null;
+            }
+
+            videoObjectUrl = URL.createObjectURL(file);
+            videoElement.srcObject = null;
+            videoElement.src = videoObjectUrl;
+            videoElement.currentTime = 0;
 
             try {
-                // Request camera access
-                gestureVideoStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                });
-
-                // Create hidden canvas
-                if (!gestureCanvas) {
-                    gestureCanvas = document.createElement('canvas');
-                    gestureCanvas.width = 1280;
-                    gestureCanvas.height = 720;
-                    gestureContext = gestureCanvas.getContext('2d');
-                }
-
-                // Create hidden video element
-                const videoElement = document.createElement('video');
-                videoElement.srcObject = gestureVideoStream;
-                videoElement.play();
-
-                gestureSocket = new WebSocket(gestureUrl);
-
-                gestureSocket.onopen = () => {
-                    document.getElementById('gestureStatus').textContent = 'Gesture Connected';
-                    document.getElementById('gestureStatus').style.color = '#4CAF50';
-                    console.log('Gesture WebSocket connected');
-
-                    // Start sending frames
-                    gestureCaptureInterval = setInterval(() => {
-                        if (gestureSocket.readyState === WebSocket.OPEN) {
-                            gestureContext.save();
-                            gestureContext.scale(-1, 1);
-                            gestureContext.drawImage(videoElement, -gestureCanvas.width, 0, gestureCanvas.width, gestureCanvas.height);
-                            gestureContext.restore();
-
-                            gestureCanvas.toBlob((blob) => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                    const base64data = reader.result.split(',')[1];
-                                    gestureSocket.send(JSON.stringify({
-                                        type: 'frame',
-                                        image: base64data
-                                    }));
-                                };
-                                reader.readAsDataURL(blob);
-                            }, 'image/jpeg', 0.8);
-                        }
-                    }, 50);
-                };
-
-                gestureSocket.onmessage = (event) => {
-                    const data = JSON.parse(event.data);
-                    console.log(data);
-                    if (data.type === 'gesture') {
-                        document.getElementById('gestureDisplay').textContent = `Gesture: ${data.action}`;
-                        console.log('Gesture received:', data.action);
-
-                        if (data.action === 'next') {
-                            nextPage();
-                        } else if (data.action === 'previous') {
-                            previousPage();
-                        }
-                    }
-                };
-
-                gestureSocket.onerror = (error) => {
-                    console.error('Gesture WebSocket error:', error);
-                    document.getElementById('gestureStatus').textContent = 'Gesture Error';
-                    document.getElementById('gestureStatus').style.color = '#f44336';
-                    cleanupGestureStream();
-                };
-
-                gestureSocket.onclose = () => {
-                    console.log('Gesture WebSocket closed');
-                    document.getElementById('gestureStatus').textContent = 'Gesture Disconnected';
-                    document.getElementById('gestureStatus').style.color = '#f44336';
-                    cleanupGestureStream();
-                };
-
+                await videoElement.play();
             } catch (error) {
-                console.error('Error accessing camera for gestures:', error);
-                alert('Could not access camera for gesture recognition: ' + error.message);
+                console.warn('Video autoplay failed, waiting for user interaction:', error);
             }
-        }
 
-        function cleanupGestureStream() {
-            if (gestureCaptureInterval) {
-                clearInterval(gestureCaptureInterval);
-                gestureCaptureInterval = null;
-            }
-            if (gestureVideoStream) {
-                gestureVideoStream.getTracks().forEach(track => track.stop());
-                gestureVideoStream = null;
-            }
-        }
+            sourceStatus.textContent = `Video source: ${file.name}`;
 
-        function disconnectGesture() {
-            cleanupGestureStream();
-            if (gestureSocket) {
-                gestureSocket.close();
-                gestureSocket = null;
+            if (!processingStarted) {
+                initializeSpeechRecognition();
+                startOCR();
+                processingStarted = true;
             }
         }
 
@@ -1023,6 +950,8 @@
         let sttWebSocket = null;
         let orchestratorSocket = null;
         let gestureSocket = null;
+        let gestureFrameInterval = null;
+        let videoObjectUrl = null;
         let currentCaptureInterval = parseInt(document.getElementById('captureInterval').value);
 
         // PDF Upload Handler
@@ -1077,7 +1006,8 @@
 
         // WebSocket connection for PDF viewer
         function connectWebSocket() {
-            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
+
+            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
 
             ws.onopen = () => {
                 console.log('WebSocket connected');
@@ -1187,12 +1117,35 @@
 
         // Gesture WebSocket
         function setupGestureSocket() {
+            const gestureConnectionStatus = document.getElementById('gestureConnectionStatus');
+            const gestureStatus = document.getElementById('gestureStatus');
+
             gestureSocket = new WebSocket(document.getElementById("gestureServerUrl").value);
 
             gestureSocket.onopen = () => {
                 console.log('Gesture WebSocket connected.');
                 gestureConnectionStatus.textContent = 'Gesture Connected';
                 gestureConnectionStatus.className = 'connected';
+
+                if (gestureFrameInterval) {
+                    clearInterval(gestureFrameInterval);
+                }
+
+                gestureFrameInterval = setInterval(() => {
+                    if (!gestureSocket || gestureSocket.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+
+                    const frameData = captureVideoFrame();
+                    if (!frameData) {
+                        return;
+                    }
+
+                    gestureSocket.send(JSON.stringify({
+                        type: 'frame',
+                        image: frameData.split(',')[1]
+                    }));
+                }, 100);
             };
 
             gestureSocket.onmessage = (event) => {
@@ -1211,6 +1164,12 @@
                 console.log('Gesture WebSocket disconnected. Retrying in 3 seconds...');
                 gestureConnectionStatus.textContent = 'Gesture Disconnected';
                 gestureConnectionStatus.className = 'disconnected';
+
+                if (gestureFrameInterval) {
+                    clearInterval(gestureFrameInterval);
+                    gestureFrameInterval = null;
+                }
+
                 setTimeout(setupGestureSocket, 3000);
             };
 
@@ -1218,6 +1177,12 @@
                 console.error('Gesture WebSocket error:', error);
                 gestureConnectionStatus.textContent = 'Gesture Error';
                 gestureConnectionStatus.className = 'disconnected';
+
+                if (gestureFrameInterval) {
+                    clearInterval(gestureFrameInterval);
+                    gestureFrameInterval = null;
+                }
+
                 gestureSocket.close();
             };
         }
@@ -1297,7 +1262,7 @@
 
         // PDF WebSocket Functions
         function setupPdfSocket() {
-            ws = new WebSocket('ws://10.42.0.108:9002/viewer');
+            ws = new WebSocket('ws://127.0.0.1:9002/viewer');
 
             ws.onopen = () => {
                 console.log('PDF WebSocket connected');
@@ -1353,8 +1318,12 @@
         }
 
         // STT WebSocket Functions
-        function setupSttSocket() {
-            sttWebSocket = new WebSocket(sttServerIp);
+        function connectSTTWebSocket(serverUrl) {
+            setupSttSocket(serverUrl);
+        }
+
+        function setupSttSocket(serverUrl) {
+            sttWebSocket = new WebSocket(serverUrl);
             sttWebSocket.binaryType = 'arraybuffer';
 
             sttWebSocket.onopen = async () => {
@@ -1596,14 +1565,12 @@
 
         }
 
-        // Video feed
-        async function initializeVideoFeed() {
-            try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                document.getElementById('videoElement').srcObject = videoStream;
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-            }
+        // Video source initialization
+        function initializeVideoFeed() {
+            const videoElement = document.getElementById('videoElement');
+            videoElement.srcObject = null;
+            videoElement.removeAttribute('src');
+            videoElement.load();
         }
 
         // Initialize everything on page load (auto-start)
@@ -1614,13 +1581,6 @@
             initializeVideoFeed();
             setupOrchestratorWebSocket();
             setupGestureSocket();
-
-            // Wait for video to be ready before starting STT, VLM and OCR
-            setTimeout(() => {
-                initializeSpeechRecognition();
-                //startVLM();
-                startOCR();
-            }, 1000);
         };
 
         // Keyboard shortcuts
@@ -1649,11 +1609,17 @@
             if (gestureSocket) {
                 gestureSocket.close();
             }
+            if (gestureFrameInterval) {
+                clearInterval(gestureFrameInterval);
+            }
             if (vlmIntervalId) {
                 clearInterval(vlmIntervalId);
             }
             if (ocrIntervalId) {
                 clearInterval(ocrIntervalId);
+            }
+            if (videoObjectUrl) {
+                URL.revokeObjectURL(videoObjectUrl);
             }
             if (recognition) {
                 recognition.stop();
